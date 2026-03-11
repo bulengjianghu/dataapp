@@ -53,6 +53,8 @@ export function ContainerEditorWrapper({
           opacity: isDragging ? 0.4 : 1,
           borderStyle: "dashed",
           borderColor: selected ? "#1677ff" : isNodeOver ? "#1677ff" : undefined,
+          boxShadow: selected ? "0 0 0 2px rgba(22, 119, 255, 0.18)" : undefined,
+          background: selected ? "#f0f7ff" : undefined,
         }}
         onClick={() => onSelect(node.id)}
         title={

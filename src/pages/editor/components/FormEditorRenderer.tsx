@@ -16,10 +16,12 @@ import { PAGE_NODE_ID, type Node } from "../../../types/schema/node";
 function NodeChip({
   node,
   depth,
+  selected,
   onSelect,
 }: {
   node: Node;
   depth: number;
+  selected: boolean;
   onSelect: (nodeId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -43,7 +45,9 @@ function NodeChip({
     marginBottom: 8,
     cursor: "grab",
     opacity: isDragging ? 0.4 : 1,
-    borderColor: isOver ? "#1677ff" : undefined,
+    borderColor: isOver ? "#1677ff" : selected ? "#1677ff" : undefined,
+    boxShadow: selected ? "0 0 0 2px rgba(22, 119, 255, 0.18)" : undefined,
+    background: selected ? "#f0f7ff" : undefined,
   };
 
   if (node.type === "container") {
@@ -133,6 +137,7 @@ export function FormEditorRenderer() {
           key={nodeId}
           node={node}
           depth={depth}
+          selected={selectedNodeKey === node.id}
           onSelect={(id) => dispatch(selectNode(id))}
         />
       );
@@ -158,11 +163,13 @@ export function FormEditorRenderer() {
   if (childrenIds.length === 0) {
     return (
       <RootDropZone>
-        <Empty description="空画布：请从左侧组件面板添加组件">
-          <Typography.Link onClick={() => dispatch(selectNode(PAGE_NODE_ID))}>
-            选中根节点
-          </Typography.Link>
-        </Empty>
+        <div style={{ display: "flex", justifyContent: "flex-start", paddingTop: 24 }}>
+          <Empty description="空画布：请从左侧组件面板添加组件">
+            <Typography.Link onClick={() => dispatch(selectNode(PAGE_NODE_ID))}>
+              选中根节点
+            </Typography.Link>
+          </Empty>
+        </div>
       </RootDropZone>
     );
   }

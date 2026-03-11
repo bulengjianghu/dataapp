@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Card, Empty, Space, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
@@ -19,13 +19,42 @@ function NodeChip({
   depth: number;
   onSelect: (nodeId: string) => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `node:${node.id}`,
+    data: {
+      source: "node",
+      nodeId: node.id,
+    },
+  });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `drop:node:${node.id}`,
+    data: {
+      type: "node",
+      nodeId: node.id,
+    },
+  });
+
   const label = (node.props.label as string | undefined) ?? node.id;
+  const style = {
+    marginLeft: depth * 12,
+    marginBottom: 8,
+    cursor: "grab",
+    opacity: isDragging ? 0.55 : 1,
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    borderColor: isOver ? "#1677ff" : undefined,
+  };
 
   if (node.type === "container") {
     return (
       <Card
+        ref={(element) => {
+          setNodeRef(element);
+          setDropRef(element);
+        }}
+        {...listeners}
+        {...attributes}
         size="small"
-        style={{ marginLeft: depth * 12, marginBottom: 8, borderStyle: "dashed" }}
+        style={{ ...style, borderStyle: "dashed" }}
         title={
           <Space>
             <Tag color="blue">container</Tag>
@@ -43,8 +72,14 @@ function NodeChip({
 
   return (
     <Card
+      ref={(element) => {
+        setNodeRef(element);
+        setDropRef(element);
+      }}
+      {...listeners}
+      {...attributes}
       size="small"
-      style={{ marginLeft: depth * 12, marginBottom: 8 }}
+      style={style}
       title={
         <Space>
           <Tag>{node.type}</Tag>

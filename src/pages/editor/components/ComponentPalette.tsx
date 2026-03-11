@@ -1,4 +1,7 @@
 import { Card, List, Space, Tag, Typography } from "antd";
+import { useAppDispatch, useAppSelector } from "../../../store/hooks";
+import { selectFormId } from "../../../store/selectors/editorSelectors";
+import { markDirty, setFormId } from "../../../store/slices/formSchemaSlice";
 
 type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口";
 
@@ -23,10 +26,16 @@ const paletteItems: PaletteItem[] = [
 const categories: PaletteCategory[] = ["基础字段", "选项字段", "附件", "容器入口"];
 
 export function ComponentPalette() {
+  const dispatch = useAppDispatch();
+  const formId = useAppSelector(selectFormId);
+
   return (
     <Card title="组件面板" size="small">
       <Typography.Paragraph type="secondary">
         Sprint 1 先提供分组入口，Sprint 2 接入拖拽投放。
+      </Typography.Paragraph>
+      <Typography.Paragraph type="secondary">
+        当前表单: {formId ?? "未初始化（点击任意组件将初始化为 local-draft）"}
       </Typography.Paragraph>
       <Space direction="vertical" style={{ width: "100%" }} size={12}>
         {categories.map((category) => {
@@ -38,7 +47,15 @@ export function ComponentPalette() {
                 bordered
                 dataSource={group}
                 renderItem={(item) => (
-                  <List.Item>
+                  <List.Item
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      if (!formId) {
+                        dispatch(setFormId("local-draft"));
+                      }
+                      dispatch(markDirty(true));
+                    }}
+                  >
                     <Space>
                       <span>{item.label}</span>
                       <Tag>{item.key}</Tag>

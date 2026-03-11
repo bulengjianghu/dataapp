@@ -1,15 +1,16 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { createEmptyNodesById, type NodesById } from "../../types/schema/node";
 
 export type FormSchemaState = {
   formId: string | null;
-  nodesById: Record<string, unknown>;
+  nodesById: NodesById;
   selectedNodeKey: string | null;
   dirty: boolean;
 };
 
 const initialState: FormSchemaState = {
   formId: null,
-  nodesById: {},
+  nodesById: createEmptyNodesById(),
   selectedNodeKey: null,
   dirty: false,
 };
@@ -24,7 +25,7 @@ const formSchemaSlice = createSlice({
     selectNode(state, action: PayloadAction<string | null>) {
       state.selectedNodeKey = action.payload;
     },
-    setNodesById(state, action: PayloadAction<Record<string, unknown>>) {
+    setNodesById(state, action: PayloadAction<NodesById>) {
       state.nodesById = action.payload;
     },
     markDirty(state, action: PayloadAction<boolean>) {

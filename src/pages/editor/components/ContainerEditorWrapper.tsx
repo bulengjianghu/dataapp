@@ -1,35 +1,23 @@
-import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { Card, Space, Tag, Typography } from "antd";
-import type { ReactNode } from "react";
-import type { Node } from "../../../types/schema/node";
+import { useDroppable } from "@dnd-kit/core";
+import type { Node, NodesById } from "../../../types/schema/node";
+import { EditorNodeCard } from "./EditorNodeCard";
+import { NodeChildrenRenderer } from "./NodeChildrenRenderer";
 
 export function ContainerEditorWrapper({
   node,
   depth,
   selected,
   onSelect,
-  children,
+  nodesById,
+  selectedNodeKey,
 }: {
   node: Node;
   depth: number;
   selected: boolean;
   onSelect: (nodeId: string) => void;
-  children: ReactNode;
+  nodesById: NodesById;
+  selectedNodeKey: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `node:${node.id}`,
-    data: {
-      source: "node",
-      nodeId: node.id,
-    },
-  });
-  const { setNodeRef: setDropRef, isOver: isNodeOver } = useDroppable({
-    id: `drop:node:${node.id}`,
-    data: {
-      type: "node",
-      nodeId: node.id,
-    },
-  });
   const { setNodeRef: setContainerRef, isOver: isContainerOver } = useDroppable({
     id: `drop:container:${node.id}`,
     data: {
@@ -40,30 +28,7 @@ export function ContainerEditorWrapper({
 
   return (
     <div style={{ marginLeft: depth * 12, marginBottom: 8 }}>
-      <Card
-        ref={(element) => {
-          setNodeRef(element);
-          setDropRef(element);
-        }}
-        {...listeners}
-        {...attributes}
-        size="small"
-        style={{
-          cursor: "grab",
-          opacity: isDragging ? 0.4 : 1,
-          borderStyle: "dashed",
-          borderColor: selected ? "#1677ff" : isNodeOver ? "#1677ff" : undefined,
-          boxShadow: selected ? "0 0 0 2px rgba(22, 119, 255, 0.18)" : undefined,
-          background: selected ? "#f0f7ff" : undefined,
-        }}
-        onClick={() => onSelect(node.id)}
-        title={
-          <Space>
-            <Tag color="blue">container</Tag>
-            <Typography.Text>{(node.props.label as string | undefined) ?? node.id}</Typography.Text>
-          </Space>
-        }
-      />
+      <EditorNodeCard node={node} depth={0} selected={selected} onSelect={onSelect} />
       <div
         ref={setContainerRef}
         style={{
@@ -75,7 +40,14 @@ export function ContainerEditorWrapper({
           padding: 8,
         }}
       >
-        {children}
+        <NodeChildrenRenderer
+          nodesById={nodesById}
+          childIds={node.childrenIds}
+          depth={depth + 1}
+          emptyText="容器为空（可投放区域）"
+          selectedNodeKey={selectedNodeKey}
+          onSelect={onSelect}
+        />
       </div>
     </div>
   );

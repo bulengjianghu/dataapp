@@ -10,8 +10,8 @@ import {
 } from "../../../store/selectors/editorSelectors";
 import { PAGE_NODE_ID } from "../../../types/schema/node";
 import { ComponentPalette } from "./ComponentPalette";
-import { DesignCanvas } from "./DesignCanvas";
 import { EditorDndContextProvider, useEditorDndStatus } from "./EditorDndContext";
+import { FormEditorRenderer } from "./FormEditorRenderer";
 import { PropertyPanel } from "./PropertyPanel";
 
 const shellStyle: CSSProperties = {
@@ -39,6 +39,7 @@ const contentStyle: CSSProperties = {
 };
 
 const panelStyle: CSSProperties = {
+  height: "100%",
   minHeight: 0,
   overflowY: "auto",
   overflowX: "hidden",
@@ -83,7 +84,7 @@ function EditorShellContent() {
           <ComponentPalette />
         </section>
         <section style={panelStyle}>
-          <DesignCanvas />
+          <FormEditorRenderer />
         </section>
         <section style={panelStyle}>
           <PropertyPanel />

@@ -40,7 +40,8 @@ const contentStyle: CSSProperties = {
 
 const panelStyle: CSSProperties = {
   minHeight: 0,
-  overflow: "auto",
+  overflowY: "auto",
+  overflowX: "hidden",
 };
 
 function EditorShellContent() {

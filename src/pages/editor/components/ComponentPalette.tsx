@@ -33,12 +33,13 @@ function DraggablePaletteItem({
   item: PaletteItem;
   onClick: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `palette:${item.key}`,
     data: {
       source: "palette",
       componentKey: item.key,
       category: item.category,
+      label: item.label,
     },
   });
 
@@ -47,8 +48,7 @@ function DraggablePaletteItem({
       ref={setNodeRef}
       style={{
         cursor: "grab",
-        opacity: isDragging ? 0.5 : 1,
-        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        opacity: isDragging ? 0.35 : 1,
       }}
       onClick={onClick}
       {...listeners}

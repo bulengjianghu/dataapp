@@ -22,7 +22,7 @@ function NodeChip({
   depth: number;
   onSelect: (nodeId: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `node:${node.id}`,
     data: {
       source: "node",
@@ -42,8 +42,7 @@ function NodeChip({
     marginLeft: depth * 12,
     marginBottom: 8,
     cursor: "grab",
-    opacity: isDragging ? 0.55 : 1,
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.4 : 1,
     borderColor: isOver ? "#1677ff" : undefined,
   };
 
@@ -58,16 +57,12 @@ function NodeChip({
         {...attributes}
         size="small"
         style={{ ...style, borderStyle: "dashed" }}
+        onClick={() => onSelect(node.id)}
         title={
           <Space>
             <Tag color="blue">container</Tag>
             <Typography.Text>{label}</Typography.Text>
           </Space>
-        }
-        extra={
-          <Typography.Link onClick={() => onSelect(node.id)} style={{ fontSize: 12 }}>
-            选中
-          </Typography.Link>
         }
       />
     );
@@ -83,16 +78,12 @@ function NodeChip({
       {...attributes}
       size="small"
       style={style}
+      onClick={() => onSelect(node.id)}
       title={
         <Space>
           <Tag>{node.type}</Tag>
           <Typography.Text>{label}</Typography.Text>
         </Space>
-      }
-      extra={
-        <Typography.Link onClick={() => onSelect(node.id)} style={{ fontSize: 12 }}>
-          选中
-        </Typography.Link>
       }
     />
   );

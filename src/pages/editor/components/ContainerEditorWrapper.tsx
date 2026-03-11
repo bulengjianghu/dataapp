@@ -16,7 +16,7 @@ export function ContainerEditorWrapper({
   onSelect: (nodeId: string) => void;
   children: ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `node:${node.id}`,
     data: {
       source: "node",
@@ -50,21 +50,16 @@ export function ContainerEditorWrapper({
         size="small"
         style={{
           cursor: "grab",
-          opacity: isDragging ? 0.55 : 1,
-          transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+          opacity: isDragging ? 0.4 : 1,
           borderStyle: "dashed",
           borderColor: selected ? "#1677ff" : isNodeOver ? "#1677ff" : undefined,
         }}
+        onClick={() => onSelect(node.id)}
         title={
           <Space>
             <Tag color="blue">container</Tag>
             <Typography.Text>{(node.props.label as string | undefined) ?? node.id}</Typography.Text>
           </Space>
-        }
-        extra={
-          <Typography.Link onClick={() => onSelect(node.id)} style={{ fontSize: 12 }}>
-            选中
-          </Typography.Link>
         }
       />
       <div

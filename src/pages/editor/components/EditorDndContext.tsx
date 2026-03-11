@@ -1,4 +1,15 @@
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type Active,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { Card, Space, Tag, Typography } from "antd";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectFormId, selectNodesById } from "../../../store/selectors/editorSelectors";
@@ -8,29 +19,69 @@ import { PAGE_NODE_ID } from "../../../types/schema/node";
 type EditorDndStatus = {
   activeId: string | null;
   overId: string | null;
+  activeLabel: string | null;
 };
 
 const EditorDndStatusContext = createContext<EditorDndStatus>({
   activeId: null,
   overId: null,
+  activeLabel: null,
 });
 
 export function useEditorDndStatus() {
   return useContext(EditorDndStatusContext);
 }
 
+function getActivePreview(active: Active, nodesById: ReturnType<typeof selectNodesById>) {
+  const current = active.data.current;
+  if (!current) {
+    return null;
+  }
+
+  if (current.source === "palette" && typeof current.label === "string") {
+    return {
+      label: current.label,
+      tag: "palette",
+    };
+  }
+
+  if (current.source === "node" && typeof current.nodeId === "string") {
+    const node = nodesById[current.nodeId];
+    if (!node) {
+      return null;
+    }
+    return {
+      label: (node.props.label as string | undefined) ?? node.id,
+      tag: node.type,
+    };
+  }
+
+  return null;
+}
+
 export function EditorDndContextProvider({ children }: { children: ReactNode }) {
   const dispatch = useAppDispatch();
   const formId = useAppSelector(selectFormId);
   const nodesById = useAppSelector(selectNodesById);
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [activeLabel, setActiveLabel] = useState<string | null>(null);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
-  const status = useMemo(() => ({ activeId, overId }), [activeId, overId]);
+  const status = useMemo(() => ({ activeId, overId, activeLabel }), [activeId, overId, activeLabel]);
 
   const onDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
+    const preview = getActivePreview(event.active, nodesById);
+    setActiveLabel(preview?.label ?? null);
+    setActiveTag(preview?.tag ?? null);
   };
 
   const onDragOver = (event: DragOverEvent) => {
@@ -44,6 +95,8 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
     if (!activeData || !overData) {
       setActiveId(null);
       setOverId(null);
+      setActiveLabel(null);
+      setActiveTag(null);
       return;
     }
 
@@ -74,6 +127,8 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
     if (!target) {
       setActiveId(null);
       setOverId(null);
+      setActiveLabel(null);
+      setActiveTag(null);
       return;
     }
 
@@ -108,12 +163,32 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
 
     setActiveId(null);
     setOverId(null);
+    setActiveLabel(null);
+    setActiveTag(null);
   };
 
   return (
     <EditorDndStatusContext.Provider value={status}>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
         {children}
+        <DragOverlay zIndex={2000}>
+          {activeLabel ? (
+            <Card
+              size="small"
+              style={{
+                width: 220,
+                boxShadow: "0 16px 32px rgba(15, 23, 42, 0.18)",
+                borderRadius: 12,
+                borderColor: "#1677ff",
+              }}
+            >
+              <Space>
+                <Tag color="processing">{activeTag ?? "drag"}</Tag>
+                <Typography.Text strong>{activeLabel}</Typography.Text>
+              </Space>
+            </Card>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </EditorDndStatusContext.Provider>
   );

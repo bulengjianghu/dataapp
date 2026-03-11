@@ -2,15 +2,20 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
   type Active,
+  type Collision,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { Card, Space, Tag, Typography } from "antd";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { PaletteTile, paletteItems } from "./ComponentPalette";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectFormId, selectNodesById } from "../../../store/selectors/editorSelectors";
 import { addNode, moveNode, setFormId } from "../../../store/slices/formSchemaSlice";
@@ -59,6 +64,29 @@ function getActivePreview(active: Active, nodesById: ReturnType<typeof selectNod
   return null;
 }
 
+function getPalettePreview(componentKey: string | undefined) {
+  if (!componentKey) {
+    return null;
+  }
+  return paletteItems.find((item) => item.key === componentKey) ?? null;
+}
+
+function getDroppablePriority(collision: Collision, nodesById: ReturnType<typeof selectNodesById>) {
+  const type = collision.data?.droppableContainer?.data.current?.type as string | undefined;
+  if (type === "node") {
+    const nodeId = collision.data?.droppableContainer?.data.current?.nodeId as string | undefined;
+    const node = nodeId ? nodesById[nodeId] : null;
+    return node?.type === "container" ? 2 : 3;
+  }
+  if (type === "container") {
+    return 2;
+  }
+  if (type === "form-root") {
+    return 1;
+  }
+  return 0;
+}
+
 export function EditorDndContextProvider({ children }: { children: ReactNode }) {
   const dispatch = useAppDispatch();
   const formId = useAppSelector(selectFormId);
@@ -74,10 +102,21 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
   const [overId, setOverId] = useState<string | null>(null);
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [disableDropAnimation, setDisableDropAnimation] = useState(false);
+
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerHits = pointerWithin(args);
+    const collisions = pointerHits.length > 0 ? pointerHits : rectIntersection(args);
+
+    return [...collisions].sort((left, right) => {
+      return getDroppablePriority(right, nodesById) - getDroppablePriority(left, nodesById);
+    });
+  };
 
   const status = useMemo(() => ({ activeId, overId, activeLabel }), [activeId, overId, activeLabel]);
 
   const onDragStart = (event: DragStartEvent) => {
+    setDisableDropAnimation(false);
     setActiveId(String(event.active.id));
     const preview = getActivePreview(event.active, nodesById);
     setActiveLabel(preview?.label ?? null);
@@ -125,6 +164,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
 
     const target = getInsertByOver();
     if (!target) {
+      setDisableDropAnimation(false);
       setActiveId(null);
       setOverId(null);
       setActiveLabel(null);
@@ -133,6 +173,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
     }
 
     if (activeData.source === "palette" && typeof activeData.componentKey === "string") {
+      setDisableDropAnimation(true);
       if (!formId) {
         dispatch(setFormId("local-draft"));
       }
@@ -152,6 +193,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
     }
 
     if (activeData.source === "node" && typeof activeData.nodeId === "string") {
+      setDisableDropAnimation(false);
       dispatch(
         moveNode({
           nodeId: activeData.nodeId,
@@ -169,10 +211,22 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
 
   return (
     <EditorDndStatusContext.Provider value={status}>
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+      >
         {children}
-        <DragOverlay zIndex={2000}>
-          {activeLabel ? (
+        <DragOverlay zIndex={2000} dropAnimation={disableDropAnimation ? null : undefined}>
+          {getPalettePreview(activeId?.startsWith("palette:") ? activeId.slice("palette:".length) : undefined) ? (
+            <div className="editor-dnd-overlay editor-dnd-overlay--palette">
+              <PaletteTile
+                item={getPalettePreview(activeId?.startsWith("palette:") ? activeId.slice("palette:".length) : undefined)!}
+              />
+            </div>
+          ) : activeLabel ? (
             <Card size="small" className="editor-dnd-overlay">
               <Space>
                 <Tag color="processing">{activeTag ?? "drag"}</Tag>

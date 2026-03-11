@@ -74,8 +74,6 @@
 
 .editor-canvas__root.is-selected {
   border-color: #1677ff;
-  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.18);
-  background: #f0f7ff;
 }
 
 .editor-canvas__empty {
@@ -92,11 +90,9 @@
 }
 
 .editor-node-insert-marker {
-  height: 10px;
+  height: 1px;
   margin: 0 0 8px;
-  border-radius: 999px;
-  background: linear-gradient(to bottom, rgba(9, 88, 217, 0.18) 0, rgba(9, 88, 217, 0.18) 100%);
-  box-shadow: inset 0 6px 0 #0958d9;
+  background: #0958d9;
 }
 
 .editor-node-card {
@@ -108,8 +104,6 @@
 }
 
 .editor-node-card.is-selected {
-  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.18);
-  background: #f0f7ff;
   border-color: #1677ff;
 }
 
@@ -300,6 +294,14 @@
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
   border-radius: 12px;
   border-color: #1677ff;
+}
+
+.editor-dnd-overlay--palette {
+  width: 72px;
+}
+
+.editor-dnd-overlay--palette .editor-palette__tile {
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
 }
 
 .editor-depth-0 {

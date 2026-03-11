@@ -1,4 +1,4 @@
-import { useDraggable } from "@dnd-kit/core";
+import { useDraggable, type DraggableAttributes } from "@dnd-kit/core";
 import {
   CalendarOutlined,
   CheckSquareOutlined,
@@ -10,15 +10,15 @@ import {
   MoreOutlined,
   PictureOutlined,
 } from "@ant-design/icons";
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { Card, Flex, Typography } from "antd";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectFormId } from "../../../store/selectors/editorSelectors";
 import { markDirty, setFormId } from "../../../store/slices/formSchemaSlice";
 
-type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口";
+export type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口";
 
-type PaletteItem = {
+export type PaletteItem = {
   key: string;
   label: string;
   category: PaletteCategory;
@@ -26,7 +26,7 @@ type PaletteItem = {
   accent: string;
 };
 
-const paletteItems: PaletteItem[] = [
+export const paletteItems: PaletteItem[] = [
   { key: "input", label: "单行文本", category: "基础字段", icon: <FontSizeOutlined />, accent: "#1677ff" },
   { key: "textarea", label: "多行文本", category: "基础字段", icon: <MenuOutlined />, accent: "#0f766e" },
   { key: "number", label: "数字", category: "基础字段", icon: <FieldNumberOutlined />, accent: "#d97706" },
@@ -40,13 +40,49 @@ const paletteItems: PaletteItem[] = [
 
 const categories: PaletteCategory[] = ["基础字段", "选项字段", "附件", "容器入口"];
 
-function DraggablePaletteItem({
+export function PaletteTile({
   item,
+  dragging = false,
   onClick,
+  dragRef,
+  dragAttributes,
+  dragListeners,
 }: {
   item: PaletteItem;
-  onClick: () => void;
+  dragging?: boolean;
+  onClick?: () => void;
+  dragRef?: (element: HTMLButtonElement | null) => void;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: HTMLAttributes<HTMLElement>;
 }) {
+  return (
+    <button
+      type="button"
+      ref={dragRef}
+      className={[
+        "editor-palette__tile",
+        `editor-palette__tile--${item.key}`,
+        dragging ? "is-dragging" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={onClick}
+      {...dragListeners}
+      {...dragAttributes}
+    >
+      <div className="editor-palette__preview">
+        <div aria-hidden="true" className="editor-palette__preview-badge">
+          {item.icon}
+        </div>
+      </div>
+      <div className="editor-palette__label">
+        <Typography.Text className="editor-palette__label-text">{item.label}</Typography.Text>
+      </div>
+    </button>
+  );
+}
+
+function DraggablePaletteItem({ item, onClick }: { item: PaletteItem; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `palette:${item.key}`,
     data: {
@@ -58,31 +94,14 @@ function DraggablePaletteItem({
   });
 
   return (
-    <button
-      type="button"
-      ref={setNodeRef}
-      className={[
-        "editor-palette__tile",
-        `editor-palette__tile--${item.key}`,
-        isDragging ? "is-dragging" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+    <PaletteTile
+      item={item}
+      dragging={isDragging}
       onClick={onClick}
-      {...listeners}
-      {...attributes}
-    >
-      <div className="editor-palette__preview">
-        <div aria-hidden="true" className="editor-palette__preview-badge">
-          {item.icon}
-        </div>
-      </div>
-      <div className="editor-palette__label">
-        <Typography.Text className="editor-palette__label-text">
-          {item.label}
-        </Typography.Text>
-      </div>
-    </button>
+      dragRef={setNodeRef}
+      dragAttributes={attributes}
+      dragListeners={listeners}
+    />
   );
 }
 

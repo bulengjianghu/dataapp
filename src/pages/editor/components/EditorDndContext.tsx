@@ -73,6 +73,9 @@ function getPalettePreview(componentKey: string | undefined) {
 
 function getDroppablePriority(collision: Collision, nodesById: ReturnType<typeof selectNodesById>) {
   const type = collision.data?.droppableContainer?.data.current?.type as string | undefined;
+  if (type === "children-end") {
+    return 4;
+  }
   if (type === "node") {
     const nodeId = collision.data?.droppableContainer?.data.current?.nodeId as string | undefined;
     const node = nodeId ? nodesById[nodeId] : null;
@@ -146,6 +149,10 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
       }
       if (overType === "container" && typeof overData.containerId === "string") {
         return { targetParentId: overData.containerId };
+      }
+      if (overType === "children-end" && typeof overData.parentId === "string") {
+        const index = typeof overData.index === "number" ? overData.index : undefined;
+        return { targetParentId: overData.parentId, targetIndex: index };
       }
       if (overType === "node" && typeof overData.nodeId === "string") {
         const overNode = nodesById[overData.nodeId];

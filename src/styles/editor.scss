@@ -47,25 +47,26 @@
 }
 
 .editor-canvas__surface {
-  height: 100%;
+  flex: 1;
   min-height: 360px;
   background: #ffffff;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
   padding: 16px;
   box-sizing: border-box;
 }
 
 .editor-canvas__root {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  min-height: 100%;
   border: 1px dashed #d1d5db;
   border-radius: 8px;
   padding: 12px;
-  flex: 1;
   box-sizing: border-box;
+  width: 100%;
+}
+
+.editor-canvas__root.is-empty {
+  display: flex;
+  flex-direction: column;
 }
 
 .editor-canvas__root.is-over {
@@ -86,13 +87,27 @@
 }
 
 .editor-node-entry {
+  position: relative;
   margin-bottom: 8px;
 }
 
 .editor-node-insert-marker {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
   height: 1px;
-  margin: 0 0 8px;
   background: #0958d9;
+  pointer-events: none;
+}
+
+.editor-node-end-dropzone {
+  position: relative;
+  min-height: 16px;
+}
+
+.editor-node-end-dropzone .editor-node-insert-marker {
+  top: 7px;
 }
 
 .editor-node-card {

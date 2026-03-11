@@ -1,11 +1,14 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Card, Empty, Space, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
+import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
+import { ContainerFields } from "./ContainerFields";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import {
   selectNodesById,
   selectPageChildrenIds,
   selectPageRootNode,
+  selectSelectedNodeKey,
 } from "../../../store/selectors/editorSelectors";
 import { selectNode } from "../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID, type Node } from "../../../types/schema/node";
@@ -116,37 +119,12 @@ function RootDropZone({ children }: { children: ReactNode }) {
   );
 }
 
-function ContainerDropZone({
-  containerId,
-  children,
-}: {
-  containerId: string;
-  children: ReactNode;
-}) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `drop:container:${containerId}`,
-    data: { type: "container", containerId },
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        border: "1px dashed #e5e7eb",
-        borderColor: isOver ? "#1677ff" : "#e5e7eb",
-        borderRadius: 8,
-        padding: 8,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 export function FormEditorRenderer() {
   const dispatch = useAppDispatch();
   const pageRoot = useAppSelector(selectPageRootNode);
   const childrenIds = useAppSelector(selectPageChildrenIds);
   const nodesById = useAppSelector(selectNodesById);
+  const selectedNodeKey = useAppSelector(selectSelectedNodeKey);
 
   const renderNodeTree = (nodeId: string, depth: number): JSX.Element => {
     const node = nodesById[nodeId];
@@ -159,22 +137,26 @@ export function FormEditorRenderer() {
     }
 
     if (node.type !== "container") {
-      return <NodeChip key={nodeId} node={node} depth={depth} onSelect={(id) => dispatch(selectNode(id))} />;
+      return (
+        <NodeChip
+          key={nodeId}
+          node={node}
+          depth={depth}
+          onSelect={(id) => dispatch(selectNode(id))}
+        />
+      );
     }
 
     return (
-      <div key={nodeId}>
-        <NodeChip node={node} depth={depth} onSelect={(id) => dispatch(selectNode(id))} />
-        <div style={{ marginLeft: depth * 12 + 12, marginBottom: 8 }}>
-          <ContainerDropZone containerId={node.id}>
-            {node.childrenIds.length === 0 ? (
-              <Typography.Text type="secondary">容器为空（可投放区域）</Typography.Text>
-            ) : (
-              node.childrenIds.map((childId) => renderNodeTree(childId, depth + 1))
-            )}
-          </ContainerDropZone>
-        </div>
-      </div>
+      <ContainerEditorWrapper
+        key={nodeId}
+        node={node}
+        depth={depth}
+        selected={selectedNodeKey === node.id}
+        onSelect={(id) => dispatch(selectNode(id))}
+      >
+        <ContainerFields childIds={node.childrenIds} depth={depth} renderNode={renderNodeTree} />
+      </ContainerEditorWrapper>
     );
   };
 

@@ -2,6 +2,10 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Card, Space, Tag, Typography } from "antd";
 import type { Node } from "../../../types/schema/node";
 
+function depthClass(depth: number) {
+  return `editor-depth-${Math.min(depth, 6)}`;
+}
+
 export function EditorNodeCard({
   node,
   depth,
@@ -39,16 +43,16 @@ export function EditorNodeCard({
       {...listeners}
       {...attributes}
       size="small"
-      style={{
-        marginLeft: depth * 12,
-        marginBottom: 8,
-        cursor: "grab",
-        opacity: isDragging ? 0.4 : 1,
-        borderStyle: node.type === "container" ? "dashed" : "solid",
-        borderColor: isOver ? "#1677ff" : selected ? "#1677ff" : undefined,
-        boxShadow: selected ? "0 0 0 2px rgba(22, 119, 255, 0.18)" : undefined,
-        background: selected ? "#f0f7ff" : undefined,
-      }}
+      className={[
+        "editor-node-card",
+        depthClass(depth),
+        node.type === "container" ? "is-container" : "",
+        selected ? "is-selected" : "",
+        isOver ? "is-over" : "",
+        isDragging ? "is-dragging" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onClick={() => onSelect(node.id)}
       title={
         <Space>

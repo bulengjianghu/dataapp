@@ -173,15 +173,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
         {children}
         <DragOverlay zIndex={2000}>
           {activeLabel ? (
-            <Card
-              size="small"
-              style={{
-                width: 220,
-                boxShadow: "0 16px 32px rgba(15, 23, 42, 0.18)",
-                borderRadius: 12,
-                borderColor: "#1677ff",
-              }}
-            >
+            <Card size="small" className="editor-dnd-overlay">
               <Space>
                 <Tag color="processing">{activeTag ?? "drag"}</Tag>
                 <Typography.Text strong>{activeLabel}</Typography.Text>

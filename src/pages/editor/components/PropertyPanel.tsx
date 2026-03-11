@@ -8,11 +8,7 @@ export function PropertyPanel() {
 
   return (
     <Card title="属性面板" size="small">
-      <div
-        style={{
-          minHeight: "calc(100vh - 180px)",
-        }}
-      >
+      <div className="editor-property-panel__body">
         {selectedNodeKey ? (
           <Descriptions
             size="small"
@@ -24,7 +20,7 @@ export function PropertyPanel() {
             ]}
           />
         ) : (
-          <div style={{ display: "grid", placeItems: "center", minHeight: "calc(100vh - 220px)" }}>
+          <div className="editor-property-panel__empty">
             <Empty description="Sprint 1 占位：未选择组件" />
           </div>
         )}

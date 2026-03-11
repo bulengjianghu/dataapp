@@ -3,6 +3,10 @@ import type { Node, NodesById } from "../../../types/schema/node";
 import { EditorNodeCard } from "./EditorNodeCard";
 import { NodeChildrenRenderer } from "./NodeChildrenRenderer";
 
+function depthClass(depth: number) {
+  return `editor-depth-${Math.min(depth, 6)}`;
+}
+
 export function ContainerEditorWrapper({
   node,
   depth,
@@ -27,18 +31,11 @@ export function ContainerEditorWrapper({
   });
 
   return (
-    <div style={{ marginLeft: depth * 12, marginBottom: 8 }}>
+    <div className={`editor-container ${depthClass(depth)}`}>
       <EditorNodeCard node={node} depth={0} selected={selected} onSelect={onSelect} />
       <div
         ref={setContainerRef}
-        style={{
-          marginLeft: 12,
-          marginTop: 8,
-          border: "1px dashed #e5e7eb",
-          borderColor: isContainerOver ? "#1677ff" : "#e5e7eb",
-          borderRadius: 8,
-          padding: 8,
-        }}
+        className={`editor-container__children${isContainerOver ? " is-over" : ""}`}
       >
         <NodeChildrenRenderer
           nodesById={nodesById}

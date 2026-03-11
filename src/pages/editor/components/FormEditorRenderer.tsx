@@ -27,19 +27,10 @@ export function FormEditorRenderer() {
       <Card
         title="设计画布"
         size="small"
-        style={{ height: "100%" }}
-        bodyStyle={{ height: "calc(100% - 38px)", padding: 0, display: "flex", flexDirection: "column" }}
+        className="editor-canvas"
+        classNames={{ body: "editor-canvas__body" }}
       >
-        <div
-          style={{
-            height: "100%",
-            minHeight: 360,
-            background: "#ffffff",
-            overflow: "auto",
-            padding: 16,
-            boxSizing: "border-box",
-          }}
-        >
+        <div className="editor-canvas__surface">
           <Empty description="页面根节点缺失（page_root）" />
         </div>
       </Card>
@@ -50,34 +41,13 @@ export function FormEditorRenderer() {
     <Card
       title="设计画布"
       size="small"
-      style={{ height: "100%" }}
-      bodyStyle={{ height: "calc(100% - 38px)", padding: 0, display: "flex", flexDirection: "column" }}
+      className="editor-canvas"
+      classNames={{ body: "editor-canvas__body" }}
     >
-      <div
-        style={{
-          height: "100%",
-          minHeight: 360,
-          background: "#ffffff",
-          overflow: "auto",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          boxSizing: "border-box",
-        }}
-      >
+      <div className="editor-canvas__surface">
         <div
           ref={setNodeRef}
-          style={{
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            border: "1px dashed #d1d5db",
-            borderColor: isOver ? "#1677ff" : "#d1d5db",
-            borderRadius: 8,
-            padding: 12,
-            flex: 1,
-            boxSizing: "border-box",
-          }}
+          className={`editor-canvas__root${isOver ? " is-over" : ""}`}
         >
           {childrenIds.length > 0 ? (
             <NodeChildrenRenderer
@@ -89,7 +59,7 @@ export function FormEditorRenderer() {
               onSelect={(id) => dispatch(selectNode(id))}
             />
           ) : (
-            <div style={{ display: "flex", justifyContent: "flex-start", paddingTop: 24 }}>
+            <div className="editor-canvas__empty">
               <Empty description="空画布：请从左侧组件面板添加组件">
                 <Typography.Link onClick={() => dispatch(selectNode(PAGE_NODE_ID))}>
                   选中根节点

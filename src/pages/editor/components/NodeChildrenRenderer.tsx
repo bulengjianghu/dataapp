@@ -3,6 +3,10 @@ import type { NodesById } from "../../../types/schema/node";
 import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
 import { EditorNodeCard } from "./EditorNodeCard";
 
+function depthClass(depth: number) {
+  return `editor-depth-${Math.min(depth, 6)}`;
+}
+
 export function NodeChildrenRenderer({
   nodesById,
   childIds,
@@ -27,7 +31,7 @@ export function NodeChildrenRenderer({
       {childIds.map((childId) => {
         if (!nodesById[childId]) {
           return (
-            <Card key={childId} size="small" style={{ marginLeft: depth * 12, marginBottom: 8 }}>
+            <Card key={childId} size="small" className={`editor-node-missing ${depthClass(depth)}`}>
               <Typography.Text type="danger">节点缺失: {childId}</Typography.Text>
             </Card>
           );

@@ -10,9 +10,8 @@ import {
   MoreOutlined,
   PictureOutlined,
 } from "@ant-design/icons";
-import { useState, type CSSProperties } from "react";
-import { Card, Flex, Typography } from "antd";
 import type { ReactNode } from "react";
+import { Card, Flex, Typography } from "antd";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectFormId } from "../../../store/selectors/editorSelectors";
 import { markDirty, setFormId } from "../../../store/slices/formSchemaSlice";
@@ -41,18 +40,6 @@ const paletteItems: PaletteItem[] = [
 
 const categories: PaletteCategory[] = ["基础字段", "选项字段", "附件", "容器入口"];
 
-const tileStyle: CSSProperties = {
-  width: "100%",
-  aspectRatio: "1 / 1",
-  cursor: "grab",
-  borderRadius: 12,
-  overflow: "hidden",
-  border: "1px solid #d9e3f0",
-  background: "#ffffff",
-  boxShadow: "0 6px 16px rgba(15, 23, 42, 0.05)",
-  transition: "transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease",
-};
-
 function DraggablePaletteItem({
   item,
   onClick,
@@ -60,7 +47,6 @@ function DraggablePaletteItem({
   item: PaletteItem;
   onClick: () => void;
 }) {
-  const [hovered, setHovered] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `palette:${item.key}`,
     data: {
@@ -75,69 +61,24 @@ function DraggablePaletteItem({
     <button
       type="button"
       ref={setNodeRef}
-      style={{
-        ...tileStyle,
-        opacity: isDragging ? 0.35 : 1,
-        transform: isDragging ? "scale(0.98)" : hovered ? "translateY(-2px)" : "scale(1)",
-        boxShadow: hovered
-          ? "0 10px 20px rgba(15, 23, 42, 0.10)"
-          : "0 6px 16px rgba(15, 23, 42, 0.05)",
-        textAlign: "left",
-        padding: 0,
-        outline: "none",
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className={[
+        "editor-palette__tile",
+        `editor-palette__tile--${item.key}`,
+        isDragging ? "is-dragging" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onClick={onClick}
       {...listeners}
       {...attributes}
     >
-      <div
-        style={{
-          height: 48,
-          background: `linear-gradient(135deg, ${item.accent}18, #ffffff 72%)`,
-          borderBottom: "1px solid #e5edf6",
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            background: "#ffffff",
-            border: `1px solid ${item.accent}22`,
-            display: "grid",
-            placeItems: "center",
-            color: item.accent,
-            fontSize: 18,
-            boxShadow: "0 4px 10px rgba(15, 23, 42, 0.06)",
-            pointerEvents: "none",
-          }}
-        >
+      <div className="editor-palette__preview">
+        <div aria-hidden="true" className="editor-palette__preview-badge">
           {item.icon}
         </div>
       </div>
-      <div
-        style={{
-          height: 28,
-          padding: "4px 6px 6px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Typography.Text
-          style={{
-            fontSize: 11,
-            lineHeight: 1.2,
-            fontWeight: 600,
-            color: "#1f2937",
-            textAlign: "center",
-          }}
-        >
+      <div className="editor-palette__label">
+        <Typography.Text className="editor-palette__label-text">
           {item.label}
         </Typography.Text>
       </div>
@@ -151,24 +92,18 @@ export function ComponentPalette() {
 
   return (
     <Card title="组件面板" size="small">
-      <Typography.Paragraph type="secondary">
+      <Typography.Paragraph type="secondary" className="editor-palette__hint">
         Sprint 1 先提供分组入口，Sprint 2 接入拖拽投放。
       </Typography.Paragraph>
-      <Typography.Paragraph type="secondary">
+      <Typography.Paragraph type="secondary" className="editor-palette__hint">
         当前表单: {formId ?? "未初始化（点击任意组件将初始化为 local-draft）"}
       </Typography.Paragraph>
-      <Flex vertical gap={12}>
+      <Flex vertical className="editor-palette__groups">
         {categories.map((category) => {
           const group = paletteItems.filter((item) => item.category === category);
           return (
             <Card key={category} size="small" title={category}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                  gap: 8,
-                }}
-              >
+              <div className="editor-palette__grid">
                 {group.map((item) => (
                   <DraggablePaletteItem
                     key={item.key}

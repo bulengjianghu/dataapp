@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { Badge, Button, Space, Tag, Typography } from "antd";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { markDirty, selectNode } from "../../../store/slices/formSchemaSlice";
@@ -14,37 +13,6 @@ import { EditorDndContextProvider, useEditorDndStatus } from "./EditorDndContext
 import { FormEditorRenderer } from "./FormEditorRenderer";
 import { PropertyPanel } from "./PropertyPanel";
 
-const shellStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateRows: "56px minmax(0, 1fr)",
-  height: "100vh",
-  background: "#f5f7fb",
-};
-
-const toolbarStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "0 16px",
-  background: "#ffffff",
-  borderBottom: "1px solid #e5e7eb",
-};
-
-const contentStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "280px minmax(0, 1fr) 340px",
-  gap: "12px",
-  minHeight: 0,
-  padding: "12px",
-};
-
-const panelStyle: CSSProperties = {
-  height: "100%",
-  minHeight: 0,
-  overflowY: "auto",
-  overflowX: "hidden",
-};
-
 function EditorShellContent() {
   const dispatch = useAppDispatch();
   const dirty = useAppSelector(selectDirty);
@@ -54,8 +22,8 @@ function EditorShellContent() {
   const { activeId, overId } = useEditorDndStatus();
 
   return (
-    <div style={shellStyle}>
-      <header style={toolbarStyle}>
+    <div className="editor-shell">
+      <header className="editor-shell__toolbar">
         <Space>
           <strong>单表单编辑器</strong>
           <Tag color={dirty ? "orange" : "green"}>{dirty ? "未保存" : "已保存"}</Tag>
@@ -69,7 +37,7 @@ function EditorShellContent() {
           <Typography.Text type="secondary">DND active: {activeId ?? "-"}</Typography.Text>
           <Typography.Text type="secondary">DND over: {overId ?? "-"}</Typography.Text>
         </Space>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="editor-shell__toolbar-actions">
           <Badge status={dirty ? "processing" : "success"} />
           <Button disabled={!dirty} onClick={() => dispatch(markDirty(false))}>
             保存草稿
@@ -79,14 +47,14 @@ function EditorShellContent() {
         </div>
       </header>
 
-      <main style={contentStyle}>
-        <section style={panelStyle}>
+      <main className="editor-shell__content">
+        <section className="editor-shell__panel">
           <ComponentPalette />
         </section>
-        <section style={panelStyle}>
+        <section className="editor-shell__panel">
           <FormEditorRenderer />
         </section>
-        <section style={panelStyle}>
+        <section className="editor-shell__panel">
           <PropertyPanel />
         </section>
       </main>

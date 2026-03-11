@@ -1,3 +1,4 @@
+import { useDndContext } from "@dnd-kit/core";
 import { Card, Typography } from "antd";
 import type { NodesById } from "../../../types/schema/node";
 import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
@@ -22,6 +23,8 @@ export function NodeChildrenRenderer({
   selectedNodeKey: string | null;
   onSelect: (nodeId: string) => void;
 }) {
+  const { active, over } = useDndContext();
+
   if (childIds.length === 0) {
     return <Typography.Text type="secondary">{emptyText}</Typography.Text>;
   }
@@ -38,29 +41,33 @@ export function NodeChildrenRenderer({
         }
 
         const node = nodesById[childId];
+        const activeSource = active?.data.current?.source;
+        const showInsertBefore =
+          over?.data.current?.type === "node" &&
+          over.data.current.nodeId === childId &&
+          (activeSource === "node" || activeSource === "palette");
 
         if (node.type !== "container") {
           return (
-            <EditorNodeCard
-              key={childId}
-              node={node}
-              depth={depth}
-              selected={selectedNodeKey === node.id}
-              onSelect={onSelect}
-            />
+            <div key={childId} className={`editor-node-entry ${depthClass(depth)}`}>
+              {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
+              <EditorNodeCard node={node} depth={depth} selected={selectedNodeKey === node.id} onSelect={onSelect} />
+            </div>
           );
         }
 
         return (
-          <ContainerEditorWrapper
-            key={childId}
-            node={node}
-            depth={depth}
-            selected={selectedNodeKey === node.id}
-            onSelect={onSelect}
-            nodesById={nodesById}
-            selectedNodeKey={selectedNodeKey}
-          />
+          <div key={childId} className={`editor-node-entry ${depthClass(depth)}`}>
+            {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
+            <ContainerEditorWrapper
+              node={node}
+              depth={depth}
+              selected={selectedNodeKey === node.id}
+              onSelect={onSelect}
+              nodesById={nodesById}
+              selectedNodeKey={selectedNodeKey}
+            />
+          </div>
         );
       })}
     </>

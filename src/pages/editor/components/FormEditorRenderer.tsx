@@ -1,6 +1,5 @@
 import { useDroppable } from "@dnd-kit/core";
-import { Card, Empty, Typography } from "antd";
-import { PAGE_NODE_ID } from "../../../types/schema/node";
+import { Card, Empty } from "antd";
 import { NodeChildrenRenderer } from "./NodeChildrenRenderer";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import {
@@ -47,7 +46,14 @@ export function FormEditorRenderer() {
       <div className="editor-canvas__surface">
         <div
           ref={setNodeRef}
-          className={`editor-canvas__root${isOver ? " is-over" : ""}`}
+          className={[
+            "editor-canvas__root",
+            isOver ? "is-over" : "",
+            selectedNodeKey === pageRoot.id ? "is-selected" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          onClick={() => dispatch(selectNode(pageRoot.id))}
         >
           {childrenIds.length > 0 ? (
             <NodeChildrenRenderer
@@ -60,11 +66,7 @@ export function FormEditorRenderer() {
             />
           ) : (
             <div className="editor-canvas__empty">
-              <Empty description="空画布：请从左侧组件面板添加组件">
-                <Typography.Link onClick={() => dispatch(selectNode(PAGE_NODE_ID))}>
-                  选中根节点
-                </Typography.Link>
-              </Empty>
+              <Empty description="空画布：请从左侧组件面板添加组件" />
             </div>
           )}
         </div>

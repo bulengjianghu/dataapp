@@ -1,3 +1,4 @@
+import { useDraggable } from "@dnd-kit/core";
 import { Card, List, Space, Tag, Typography } from "antd";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectFormId } from "../../../store/selectors/editorSelectors";
@@ -25,6 +26,42 @@ const paletteItems: PaletteItem[] = [
 
 const categories: PaletteCategory[] = ["基础字段", "选项字段", "附件", "容器入口"];
 
+function DraggablePaletteItem({
+  item,
+  onClick,
+}: {
+  item: PaletteItem;
+  onClick: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `palette:${item.key}`,
+    data: {
+      source: "palette",
+      componentKey: item.key,
+      category: item.category,
+    },
+  });
+
+  return (
+    <List.Item
+      ref={setNodeRef}
+      style={{
+        cursor: "grab",
+        opacity: isDragging ? 0.5 : 1,
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+      }}
+      onClick={onClick}
+      {...listeners}
+      {...attributes}
+    >
+      <Space>
+        <span>{item.label}</span>
+        <Tag>{item.key}</Tag>
+      </Space>
+    </List.Item>
+  );
+}
+
 export function ComponentPalette() {
   const dispatch = useAppDispatch();
   const formId = useAppSelector(selectFormId);
@@ -47,20 +84,15 @@ export function ComponentPalette() {
                 bordered
                 dataSource={group}
                 renderItem={(item) => (
-                  <List.Item
-                    style={{ cursor: "pointer" }}
+                  <DraggablePaletteItem
+                    item={item}
                     onClick={() => {
                       if (!formId) {
                         dispatch(setFormId("local-draft"));
                       }
                       dispatch(markDirty(true));
                     }}
-                  >
-                    <Space>
-                      <span>{item.label}</span>
-                      <Tag>{item.key}</Tag>
-                    </Space>
-                  </List.Item>
+                  />
                 )}
               />
             </Card>

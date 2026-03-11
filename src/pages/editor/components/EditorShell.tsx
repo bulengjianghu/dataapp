@@ -11,6 +11,7 @@ import {
 import { PAGE_NODE_ID } from "../../../types/schema/node";
 import { ComponentPalette } from "./ComponentPalette";
 import { DesignCanvas } from "./DesignCanvas";
+import { EditorDndContextProvider, useEditorDndStatus } from "./EditorDndContext";
 import { PropertyPanel } from "./PropertyPanel";
 
 const shellStyle: CSSProperties = {
@@ -42,12 +43,13 @@ const panelStyle: CSSProperties = {
   overflow: "auto",
 };
 
-export function EditorShell() {
+function EditorShellContent() {
   const dispatch = useAppDispatch();
   const dirty = useAppSelector(selectDirty);
   const selectedNodeKey = useAppSelector(selectSelectedNodeKey);
   const undoCount = useAppSelector(selectHistoryPastCount);
   const redoCount = useAppSelector(selectHistoryFutureCount);
+  const { activeId, overId } = useEditorDndStatus();
 
   return (
     <div style={shellStyle}>
@@ -62,6 +64,8 @@ export function EditorShell() {
           )}
           <Typography.Text type="secondary">Undo: {undoCount}</Typography.Text>
           <Typography.Text type="secondary">Redo: {redoCount}</Typography.Text>
+          <Typography.Text type="secondary">DND active: {activeId ?? "-"}</Typography.Text>
+          <Typography.Text type="secondary">DND over: {overId ?? "-"}</Typography.Text>
         </Space>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Badge status={dirty ? "processing" : "success"} />
@@ -85,5 +89,13 @@ export function EditorShell() {
         </section>
       </main>
     </div>
+  );
+}
+
+export function EditorShell() {
+  return (
+    <EditorDndContextProvider>
+      <EditorShellContent />
+    </EditorDndContextProvider>
   );
 }

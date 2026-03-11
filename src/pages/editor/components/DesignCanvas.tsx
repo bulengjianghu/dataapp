@@ -1,4 +1,5 @@
-import { Card, Empty } from "antd";
+import { Card } from "antd";
+import { FormEditorRenderer } from "./FormEditorRenderer";
 
 export function DesignCanvas() {
   return (
@@ -14,7 +15,9 @@ export function DesignCanvas() {
           background: "#ffffff",
         }}
       >
-        <Empty description="Sprint 1 占位：空画布" />
+        <div style={{ width: "100%", maxWidth: 780, padding: 16 }}>
+          <FormEditorRenderer />
+        </div>
       </div>
     </Card>
   );

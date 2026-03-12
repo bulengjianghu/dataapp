@@ -2,7 +2,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Card, Flex, Space, Tag, Typography } from "antd";
 import type { MouseEvent } from "react";
 import type { Node } from "../../../types/schema/node";
-import { getComponentTitle, renderEditorNodePreview } from "./componentRegistry";
+import { getComponentTitle, renderEditorNodePreview } from "./nodes";
 
 function depthClass(depth: number) {
   return `editor-depth-${Math.min(depth, 6)}`;

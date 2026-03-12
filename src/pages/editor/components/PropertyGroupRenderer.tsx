@@ -1,6 +1,6 @@
 import { Form, Typography } from "antd";
 import type { Node } from "../../../types/schema/node";
-import type { PropertyGroupSchema } from "./componentRegistry";
+import type { PropertyGroupSchema } from "./nodes";
 import { PropertyControlFactory } from "./PropertyControlFactory";
 
 export function PropertyGroupRenderer({

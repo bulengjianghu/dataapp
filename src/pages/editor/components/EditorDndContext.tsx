@@ -20,7 +20,7 @@ import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectFormId, selectNodesById } from "../../../store/selectors/editorSelectors";
 import { addNode, moveNode, setFormId } from "../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID } from "../../../types/schema/node";
-import { createPaletteNodePreset } from "./componentRegistry";
+import { createPaletteNodePreset } from "./nodes";
 
 type EditorDndStatus = {
   activeId: string | null;

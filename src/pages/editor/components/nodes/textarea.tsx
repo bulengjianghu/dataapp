@@ -38,4 +38,10 @@ export const textareaNodeDefinition: ComponentNodeDefinition = {
       value=""
     />
   ),
+  renderRuntime: (node) => (
+    <Input.TextArea
+      rows={3}
+      placeholder={(node.props.placeholder as string | undefined) ?? "请输入详细内容"}
+    />
+  ),
 };

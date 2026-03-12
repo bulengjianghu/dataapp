@@ -38,4 +38,9 @@ export const uploadNodeDefinition: ComponentNodeDefinition = {
       <Typography.Text type="secondary">支持拖拽或点击上传附件</Typography.Text>
     </Space>
   ),
+  renderRuntime: (node) => (
+    <Button icon={<InboxOutlined />}>
+      {(node.props.buttonText as string | undefined) ?? "点击上传"}
+    </Button>
+  ),
 };

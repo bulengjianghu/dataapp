@@ -3,6 +3,7 @@ import { Card, Flex, Tag, Typography } from "antd";
 import type { MouseEvent } from "react";
 import type { Node } from "../../../types/schema/node";
 import { renderEditorNodePreview } from "./nodes";
+import { SelectionOutline } from "./SelectionOutline";
 
 function depthClass(depth: number) {
   return `editor-depth-${Math.min(depth, 6)}`;
@@ -13,12 +14,14 @@ export function EditorNodeCard({
   depth,
   selected,
   onSelect,
+  onDelete,
   interactive = true,
 }: {
   node: Node;
   depth: number;
   selected: boolean;
   onSelect: (nodeId: string) => void;
+  onDelete?: (nodeId: string) => void;
   interactive?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -42,53 +45,59 @@ export function EditorNodeCard({
     event.stopPropagation();
     onSelect(node.id);
   };
+  const deleteMessage = `删除后不可恢复${node.type === "container" ? "，其下子组件也会一并删除" : ""}`;
 
   return (
-    <Card
-      ref={(element) => {
-        setNodeRef(element);
-        setDropRef(element);
-      }}
-      {...listeners}
-      {...attributes}
-      size="small"
-      classNames={{ body: "editor-node-card__body" }}
-      className={[
-        "editor-node-card",
-        depthClass(depth),
-        node.type === "container" ? "is-container" : "",
-        selected ? "is-selected" : "",
-        isDragging ? "is-dragging" : "",
-        !interactive ? "is-overlay" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      onClick={interactive ? handleClick : undefined}
+    <SelectionOutline
+      selected={selected}
+      deleteMessage={deleteMessage}
+      onDelete={() => onDelete?.(node.id)}
     >
-      <Flex vertical gap={8} className="editor-node-card__content">
-        {node.type === "container" ? (
-          <Flex align="center" gap={8} wrap>
-            <Tag color="blue" className="editor-node-card__required">
-              容器
-            </Tag>
-          </Flex>
-        ) : null}
-        <div className="editor-node-card__preview-wrap">
-          {Boolean(node.props.required) ? (
-            <span aria-label="必填" className="editor-node-card__required-mark">
-              *
-            </span>
+      <Card
+        ref={(element) => {
+          setNodeRef(element);
+          setDropRef(element);
+        }}
+        {...listeners}
+        {...attributes}
+        size="small"
+        classNames={{ body: "editor-node-card__body" }}
+        className={[
+          "editor-node-card",
+          depthClass(depth),
+          node.type === "container" ? "is-container" : "",
+          isDragging ? "is-dragging" : "",
+          !interactive ? "is-overlay" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        onClick={interactive ? handleClick : undefined}
+      >
+        <Flex vertical gap={8} className="editor-node-card__content">
+          {node.type === "container" ? (
+            <Flex align="center" gap={8} wrap>
+              <Tag color="blue" className="editor-node-card__required">
+                容器
+              </Tag>
+            </Flex>
           ) : null}
-          <div className={["editor-node-card__preview", isOver ? "is-over" : ""].filter(Boolean).join(" ")}>
-            {renderEditorNodePreview(node)}
+          <div className="editor-node-card__preview-wrap">
+            {Boolean(node.props.required) ? (
+              <span aria-label="必填" className="editor-node-card__required-mark">
+                *
+              </span>
+            ) : null}
+            <div className={["editor-node-card__preview", isOver ? "is-over" : ""].filter(Boolean).join(" ")}>
+              {renderEditorNodePreview(node)}
+            </div>
           </div>
-        </div>
-        {helpText ? (
-          <Typography.Text type="secondary" className="editor-node-card__help">
-            {helpText}
-          </Typography.Text>
-        ) : null}
-      </Flex>
-    </Card>
+          {helpText ? (
+            <Typography.Text type="secondary" className="editor-node-card__help">
+              {helpText}
+            </Typography.Text>
+          ) : null}
+        </Flex>
+      </Card>
+    </SelectionOutline>
   );
 }

@@ -15,6 +15,7 @@ export function NodeContainerSurface({
   emptyText,
   className,
   onSelect,
+  onDelete,
   children,
 }: {
   droppableId: string;
@@ -27,6 +28,7 @@ export function NodeContainerSurface({
   emptyText: string;
   className: string;
   onSelect: (nodeId: string) => void;
+  onDelete: (nodeId: string) => void;
   children?: ReactNode;
 }) {
   const { active, over } = useDndContext();
@@ -78,6 +80,7 @@ export function NodeContainerSurface({
             selectedNodeKey={selectedNodeKey}
             parentId={containerId}
             onSelect={onSelect}
+            onDelete={onDelete}
           />
         </div>
       ) : (

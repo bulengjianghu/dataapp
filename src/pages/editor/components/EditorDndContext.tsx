@@ -253,6 +253,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
                       depth={0}
                       selected={false}
                       onSelect={() => undefined}
+                      onDelete={() => undefined}
                       nodesById={nodesById}
                       selectedNodeKey={null}
                       interactive={false}
@@ -268,6 +269,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
                     depth={0}
                     selected={false}
                     onSelect={() => undefined}
+                    onDelete={() => undefined}
                     interactive={false}
                   />
                 </div>

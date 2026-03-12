@@ -36,4 +36,7 @@ export const inputNodeDefinition: ComponentNodeDefinition = {
       value=""
     />
   ),
+  renderRuntime: (node) => (
+    <Input placeholder={(node.props.placeholder as string | undefined) ?? "请输入"} />
+  ),
 };

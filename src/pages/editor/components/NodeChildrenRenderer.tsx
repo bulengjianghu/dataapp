@@ -15,6 +15,7 @@ export function NodeChildrenRenderer({
   emptyText,
   selectedNodeKey,
   onSelect,
+  onDelete,
   parentId,
 }: {
   nodesById: NodesById;
@@ -23,6 +24,7 @@ export function NodeChildrenRenderer({
   emptyText: string;
   selectedNodeKey: string | null;
   onSelect: (nodeId: string) => void;
+  onDelete: (nodeId: string) => void;
   parentId: string;
 }) {
   const { active, over } = useDndContext();
@@ -71,7 +73,13 @@ export function NodeChildrenRenderer({
               style={{ gridColumn: `span ${span}` }}
             >
               {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
-              <EditorNodeCard node={node} depth={depth} selected={selectedNodeKey === node.id} onSelect={onSelect} />
+              <EditorNodeCard
+                node={node}
+                depth={depth}
+                selected={selectedNodeKey === node.id}
+                onSelect={onSelect}
+                onDelete={onDelete}
+              />
             </div>
           );
         }
@@ -88,6 +96,7 @@ export function NodeChildrenRenderer({
               depth={depth}
               selected={selectedNodeKey === node.id}
               onSelect={onSelect}
+              onDelete={onDelete}
               nodesById={nodesById}
               selectedNodeKey={selectedNodeKey}
             />

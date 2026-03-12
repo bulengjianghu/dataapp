@@ -66,6 +66,17 @@ function removeFromParent(nodesById: NodesById, nodeId: string) {
   parent.childrenIds = parent.childrenIds.filter((id) => id !== nodeId);
 }
 
+function removeNodeCascade(nodesById: NodesById, nodeId: string) {
+  const node = nodesById[nodeId];
+  if (!node) {
+    return;
+  }
+
+  node.childrenIds.forEach((childId) => removeNodeCascade(nodesById, childId));
+  removeFromParent(nodesById, nodeId);
+  delete nodesById[nodeId];
+}
+
 function isDescendant(nodesById: NodesById, ancestorId: string, maybeDescendantId: string): boolean {
   const ancestor = nodesById[ancestorId];
   if (!ancestor) {
@@ -195,6 +206,28 @@ const formSchemaSlice = createSlice({
         },
       });
     },
+    deleteSelectedNode(state) {
+      const selectedNodeKey = state.selectedNodeKey;
+      if (!selectedNodeKey || selectedNodeKey === PAGE_NODE_ID) {
+        return;
+      }
+
+      removeNodeCascade(state.nodesById, selectedNodeKey);
+      state.selectedNodeKey = PAGE_NODE_ID;
+      state.dirty = true;
+    },
+    deleteNode(state, action: PayloadAction<string>) {
+      const nodeId = action.payload;
+      if (!nodeId || nodeId === PAGE_NODE_ID || !state.nodesById[nodeId]) {
+        return;
+      }
+
+      removeNodeCascade(state.nodesById, nodeId);
+      if (state.selectedNodeKey === nodeId) {
+        state.selectedNodeKey = PAGE_NODE_ID;
+      }
+      state.dirty = true;
+    },
     markDirty(state, action: PayloadAction<boolean>) {
       state.dirty = action.payload;
     },
@@ -211,6 +244,8 @@ export const {
   addNode,
   moveNode,
   moveNodeToContainer,
+  deleteSelectedNode,
+  deleteNode,
   updateNodeProps,
   updateNodeLayout,
   markDirty,

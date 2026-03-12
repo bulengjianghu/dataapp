@@ -33,4 +33,5 @@ export const radioNodeDefinition: ComponentNodeDefinition = {
     defaultLayoutGroup,
   ],
   renderEditorPreview: (node) => <Radio.Group options={normalizeOptions(node.props.options)} />,
+  renderRuntime: (node) => <Radio.Group options={normalizeOptions(node.props.options)} />,
 };

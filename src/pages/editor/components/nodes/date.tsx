@@ -36,4 +36,7 @@ export const dateNodeDefinition: ComponentNodeDefinition = {
       placeholder={(node.props.placeholder as string | undefined) ?? "请选择日期"}
     />
   ),
+  renderRuntime: (node) => (
+    <DatePicker style={{ width: "100%" }} placeholder={(node.props.placeholder as string | undefined) ?? "请选择日期"} />
+  ),
 };

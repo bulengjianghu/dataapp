@@ -36,4 +36,10 @@ export const numberNodeDefinition: ComponentNodeDefinition = {
       placeholder={(node.props.placeholder as string | undefined) ?? "请输入数字"}
     />
   ),
+  renderRuntime: (node) => (
+    <InputNumber
+      style={{ width: "100%" }}
+      placeholder={(node.props.placeholder as string | undefined) ?? "请输入数字"}
+    />
+  ),
 };

@@ -33,4 +33,5 @@ export const checkboxNodeDefinition: ComponentNodeDefinition = {
     defaultLayoutGroup,
   ],
   renderEditorPreview: (node) => <Checkbox.Group options={normalizeOptions(node.props.options)} />,
+  renderRuntime: (node) => <Checkbox.Group options={normalizeOptions(node.props.options)} />,
 };

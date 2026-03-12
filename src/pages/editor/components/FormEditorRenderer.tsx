@@ -7,7 +7,7 @@ import {
   selectPageRootNode,
   selectSelectedNodeKey,
 } from "../../../store/selectors/editorSelectors";
-import { selectNode } from "../../../store/slices/formSchemaSlice";
+import { deleteNode, selectNode } from "../../../store/slices/formSchemaSlice";
 import { getPageNodeDefinition } from "./nodes";
 
 export function FormEditorRenderer() {
@@ -52,6 +52,7 @@ export function FormEditorRenderer() {
           emptyText={pageDefinition.emptyText ?? "空画布"}
           className="editor-canvas__root"
           onSelect={(id) => dispatch(selectNode(id))}
+          onDelete={(id) => dispatch(deleteNode(id))}
         />
       </div>
     </Card>

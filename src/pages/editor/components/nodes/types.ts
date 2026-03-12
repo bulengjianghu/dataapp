@@ -29,6 +29,7 @@ export type ComponentNodeDefinition = {
   createDefaultProps: () => Record<string, unknown>;
   propertyGroups: PropertyGroupSchema[];
   renderEditorPreview: (node: Node) => ReactNode;
+  renderRuntime: (node: Node) => ReactNode;
   canvasTitle?: string;
   emptyText?: string;
 };

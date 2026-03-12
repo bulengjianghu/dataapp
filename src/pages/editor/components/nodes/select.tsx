@@ -47,4 +47,10 @@ export const selectNodeDefinition: ComponentNodeDefinition = {
       placeholder={(node.props.placeholder as string | undefined) ?? "请选择"}
     />
   ),
+  renderRuntime: (node) => (
+    <Select
+      options={normalizeOptions(node.props.options)}
+      placeholder={(node.props.placeholder as string | undefined) ?? "请选择"}
+    />
+  ),
 };

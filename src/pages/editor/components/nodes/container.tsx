@@ -42,4 +42,9 @@ export const containerNodeDefinition: ComponentNodeDefinition = {
       </Typography.Text>
     </Space>
   ),
+  renderRuntime: (node) => (
+    <Typography.Text type="secondary">
+      {(node.props.description as string | undefined) ?? "将字段拖入此容器中"}
+    </Typography.Text>
+  ),
 };

@@ -13,14 +13,17 @@ export function EditorNodeCard({
   depth,
   selected,
   onSelect,
+  interactive = true,
 }: {
   node: Node;
   depth: number;
   selected: boolean;
   onSelect: (nodeId: string) => void;
+  interactive?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `node:${node.id}`,
+    disabled: !interactive,
     data: {
       source: "node",
       nodeId: node.id,
@@ -28,6 +31,7 @@ export function EditorNodeCard({
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `drop:node:${node.id}`,
+    disabled: !interactive,
     data: {
       type: "node",
       nodeId: node.id,
@@ -55,10 +59,11 @@ export function EditorNodeCard({
         node.type === "container" ? "is-container" : "",
         selected ? "is-selected" : "",
         isDragging ? "is-dragging" : "",
+        !interactive ? "is-overlay" : "",
       ]
         .filter(Boolean)
         .join(" ")}
-      onClick={handleClick}
+      onClick={interactive ? handleClick : undefined}
     >
       <Flex vertical gap={8} className="editor-node-card__content">
         {node.type === "container" ? (

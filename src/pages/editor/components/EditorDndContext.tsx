@@ -21,6 +21,8 @@ import { selectFormId, selectNodesById } from "../../../store/selectors/editorSe
 import { addNode, moveNode, setFormId } from "../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID } from "../../../types/schema/node";
 import { createPaletteNodePreset } from "./nodes";
+import { EditorNodeCard } from "./EditorNodeCard";
+import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
 
 type EditorDndStatus = {
   activeId: string | null;
@@ -70,6 +72,13 @@ function getPalettePreview(componentKey: string | undefined) {
     return null;
   }
   return paletteItems.find((item) => item.key === componentKey) ?? null;
+}
+
+function getActiveNodeId(activeId: string | null) {
+  if (!activeId?.startsWith("node:")) {
+    return null;
+  }
+  return activeId.slice("node:".length);
 }
 
 function getDroppablePriority(collision: Collision, nodesById: ReturnType<typeof selectNodesById>) {
@@ -232,6 +241,38 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
                 item={getPalettePreview(activeId?.startsWith("palette:") ? activeId.slice("palette:".length) : undefined)!}
               />
             </div>
+          ) : getActiveNodeId(activeId) && nodesById[getActiveNodeId(activeId)!] ? (
+            (() => {
+              const activeNode = nodesById[getActiveNodeId(activeId)!];
+
+              if (activeNode.type === "container") {
+                return (
+                  <div className="editor-dnd-overlay editor-dnd-overlay--node">
+                    <ContainerEditorWrapper
+                      node={activeNode}
+                      depth={0}
+                      selected={false}
+                      onSelect={() => undefined}
+                      nodesById={nodesById}
+                      selectedNodeKey={null}
+                      interactive={false}
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div className="editor-dnd-overlay editor-dnd-overlay--node">
+                  <EditorNodeCard
+                    node={activeNode}
+                    depth={0}
+                    selected={false}
+                    onSelect={() => undefined}
+                    interactive={false}
+                  />
+                </div>
+              );
+            })()
           ) : activeLabel ? (
             <Card size="small" className="editor-dnd-overlay">
               <Space>

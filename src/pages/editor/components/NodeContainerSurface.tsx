@@ -1,5 +1,6 @@
 import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { Empty } from "antd";
+import type { ReactNode } from "react";
 import type { NodesById } from "../../../types/schema/node";
 import { NodeChildrenRenderer } from "./NodeChildrenRenderer";
 
@@ -14,6 +15,7 @@ export function NodeContainerSurface({
   emptyText,
   className,
   onSelect,
+  children,
 }: {
   droppableId: string;
   droppableType: "form-root" | "container";
@@ -25,6 +27,7 @@ export function NodeContainerSurface({
   emptyText: string;
   className: string;
   onSelect: (nodeId: string) => void;
+  children?: ReactNode;
 }) {
   const { active, over } = useDndContext();
   const { setNodeRef } = useDroppable({
@@ -64,6 +67,7 @@ export function NodeContainerSurface({
         .join(" ")}
       onClick={() => onSelect(containerId)}
     >
+      {children}
       {childIds.length > 0 ? (
         <div className="editor-node-grid">
           <NodeChildrenRenderer

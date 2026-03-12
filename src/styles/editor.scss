@@ -98,6 +98,16 @@
   gap: 8px;
 }
 
+.editor-node-grid .editor-depth-0,
+.editor-node-grid .editor-depth-1,
+.editor-node-grid .editor-depth-2,
+.editor-node-grid .editor-depth-3,
+.editor-node-grid .editor-depth-4,
+.editor-node-grid .editor-depth-5,
+.editor-node-grid .editor-depth-6 {
+  margin-left: 0;
+}
+
 .editor-node-insert-marker {
   position: absolute;
   top: -4px;
@@ -136,6 +146,10 @@
 
 .editor-node-card.is-dragging {
   opacity: 0.4;
+}
+
+.editor-node-card.is-overlay {
+  cursor: grabbing;
 }
 
 .editor-node-card.is-selected {
@@ -196,16 +210,53 @@
   margin-bottom: 8px;
 }
 
+.editor-container.is-dragging {
+  opacity: 0.4;
+}
+
+.editor-container.is-overlay {
+  cursor: grabbing;
+}
+
+.editor-container__head-dropzone {
+  min-height: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  margin: 0 0 6px;
+  border-radius: 6px;
+}
+
 .editor-container__children {
-  margin-left: 12px;
-  margin-top: 8px;
   border: 1px dashed #e5e7eb;
   border-radius: 8px;
-  padding: 8px;
+  padding: 12px;
+  box-sizing: border-box;
+  position: relative;
 }
 
 .editor-container__children.is-over {
   border-color: #1677ff;
+}
+
+.editor-container__children.is-selected {
+  border-color: #1677ff;
+  background: rgba(22, 119, 255, 0.03);
+}
+
+.editor-container__children .editor-node-entry {
+  margin-left: 0;
+}
+
+.editor-container__meta {
+  position: relative;
+  min-height: 30px;
+}
+
+.editor-container__required-mark {
+  top: -2px;
+  left: 0;
 }
 
 .editor-node-missing {
@@ -405,6 +456,15 @@
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
   border-radius: 12px;
   border-color: #1677ff;
+}
+
+.editor-dnd-overlay--node {
+  width: 320px;
+}
+
+.editor-dnd-overlay--node .editor-node-card,
+.editor-dnd-overlay--node .editor-container {
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
 }
 
 .editor-dnd-overlay--palette {

@@ -1,5 +1,5 @@
 import { InboxOutlined } from "@ant-design/icons";
-import { Button, Space, Typography } from "antd";
+import { Button, Space, Typography, Upload } from "antd";
 import type { ComponentNodeDefinition } from "./types";
 import { baseFieldGroup, defaultLayoutGroup } from "./shared";
 
@@ -39,8 +39,10 @@ export const uploadNodeDefinition: ComponentNodeDefinition = {
     </Space>
   ),
   renderRuntime: (node) => (
-    <Button icon={<InboxOutlined />}>
-      {(node.props.buttonText as string | undefined) ?? "点击上传"}
-    </Button>
+    <Upload beforeUpload={() => false} showUploadList={false}>
+      <Button icon={<InboxOutlined />}>
+        {(node.props.buttonText as string | undefined) ?? "点击上传"}
+      </Button>
+    </Upload>
   ),
 };

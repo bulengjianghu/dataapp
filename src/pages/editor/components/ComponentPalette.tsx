@@ -111,12 +111,6 @@ export function ComponentPalette() {
 
   return (
     <Card title="组件面板" size="small">
-      <Typography.Paragraph type="secondary" className="editor-palette__hint">
-        Sprint 1 先提供分组入口，Sprint 2 接入拖拽投放。
-      </Typography.Paragraph>
-      <Typography.Paragraph type="secondary" className="editor-palette__hint">
-        当前表单: {formId ?? "未初始化（点击任意组件将初始化为 local-draft）"}
-      </Typography.Paragraph>
       <Flex vertical className="editor-palette__groups">
         {categories.map((category) => {
           const group = paletteItems.filter((item) => item.category === category);

@@ -1,4 +1,4 @@
-import { Card, Empty, Flex, Typography } from "antd";
+import { Empty, Flex, Typography } from "antd";
 import type { Node, NodesById } from "../../../types/schema/node";
 import { componentDefinitions, getPageNodeDefinition } from "./nodes";
 
@@ -28,20 +28,16 @@ function RuntimeField({
   );
 }
 
-function RuntimeContainer({
+export function RuntimeNodeRenderer({
   node,
   nodesById,
 }: {
   node: Node;
   nodesById: NodesById;
 }) {
-  const definition = componentDefinitions.container;
-  const label = typeof node.props.label === "string" ? node.props.label : definition.title;
-
-  return (
-    <Card size="small" title={label} className="runtime-node__container">
-      <Flex vertical gap={8}>
-        {definition.renderRuntime(node)}
+  if (node.type === "container") {
+    return (
+      <div className="runtime-node__container">
         <div className="runtime-node__children-grid">
           {node.childrenIds.length > 0 ? (
             node.childrenIds.map((childId) => {
@@ -61,20 +57,8 @@ function RuntimeContainer({
             <Empty description="容器暂无字段" />
           )}
         </div>
-      </Flex>
-    </Card>
-  );
-}
-
-export function RuntimeNodeRenderer({
-  node,
-  nodesById,
-}: {
-  node: Node;
-  nodesById: NodesById;
-}) {
-  if (node.type === "container") {
-    return <RuntimeContainer node={node} nodesById={nodesById} />;
+      </div>
+    );
   }
 
   if (node.type === "page") {

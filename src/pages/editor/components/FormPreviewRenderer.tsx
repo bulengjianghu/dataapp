@@ -1,4 +1,5 @@
-import { Card, Empty, Flex, Typography } from "antd";
+import { InfoCircleOutlined } from "@ant-design/icons";
+import { Card, Empty, Flex, Tooltip, Typography } from "antd";
 import { useAppSelector } from "../../../store/hooks";
 import { selectNodesById, selectPageChildrenIds, selectPageRootNode } from "../../../store/selectors/editorSelectors";
 import { RuntimeNodeRenderer } from "./RuntimeNodeRenderer";
@@ -18,18 +19,20 @@ export function FormPreviewRenderer() {
   const description = typeof pageRoot.props.description === "string" ? pageRoot.props.description : "";
 
   return (
-    <Card title={pageDefinition.title} className="preview-page">
-      <Flex vertical gap={16}>
-        <div>
-          <Typography.Title level={3} className="preview-page__title">
-            {title}
-          </Typography.Title>
+    <Card
+      title={
+        <Flex align="center" gap={8}>
+          <span>{title}</span>
           {description ? (
-            <Typography.Paragraph type="secondary" className="preview-page__description">
-              {description}
-            </Typography.Paragraph>
+            <Tooltip title={description}>
+              <InfoCircleOutlined className="preview-page__info" />
+            </Tooltip>
           ) : null}
-        </div>
+        </Flex>
+      }
+      className="preview-page"
+    >
+      <Flex vertical gap={16}>
         <div className="runtime-node__children-grid">
           {childrenIds.length > 0 ? (
             childrenIds.map((childId) => {

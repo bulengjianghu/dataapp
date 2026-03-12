@@ -1,8 +1,8 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { Card, Flex, Space, Tag, Typography } from "antd";
+import { Card, Flex, Tag, Typography } from "antd";
 import type { MouseEvent } from "react";
 import type { Node } from "../../../types/schema/node";
-import { getComponentTitle, renderEditorNodePreview } from "./nodes";
+import { renderEditorNodePreview } from "./nodes";
 
 function depthClass(depth: number) {
   return `editor-depth-${Math.min(depth, 6)}`;
@@ -33,9 +33,6 @@ export function EditorNodeCard({
       nodeId: node.id,
     },
   });
-  const label = (node.props.label as string | undefined) ?? node.id;
-  const componentKey =
-    typeof node.props.component === "string" ? node.props.component : node.type === "container" ? "container" : undefined;
   const helpText = typeof node.props.helpText === "string" ? node.props.helpText : "";
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
@@ -51,6 +48,7 @@ export function EditorNodeCard({
       {...listeners}
       {...attributes}
       size="small"
+      classNames={{ body: "editor-node-card__body" }}
       className={[
         "editor-node-card",
         depthClass(depth),
@@ -61,22 +59,24 @@ export function EditorNodeCard({
         .filter(Boolean)
         .join(" ")}
       onClick={handleClick}
-      title={
-        <Space>
-          <Tag color={node.type === "container" ? "blue" : "default"}>{node.type}</Tag>
-          <Typography.Text>{label}</Typography.Text>
-          {componentKey ? <Typography.Text type="secondary">{getComponentTitle(componentKey)}</Typography.Text> : null}
-        </Space>
-      }
     >
-      <Flex vertical gap={8}>
-        {Boolean(node.props.required) ? (
-          <Tag color="red" className="editor-node-card__required">
-            必填
-          </Tag>
+      <Flex vertical gap={8} className="editor-node-card__content">
+        {node.type === "container" ? (
+          <Flex align="center" gap={8} wrap>
+            <Tag color="blue" className="editor-node-card__required">
+              容器
+            </Tag>
+          </Flex>
         ) : null}
-        <div className={["editor-node-card__preview", isOver ? "is-over" : ""].filter(Boolean).join(" ")}>
-          {renderEditorNodePreview(node)}
+        <div className="editor-node-card__preview-wrap">
+          {Boolean(node.props.required) ? (
+            <span aria-label="必填" className="editor-node-card__required-mark">
+              *
+            </span>
+          ) : null}
+          <div className={["editor-node-card__preview", isOver ? "is-over" : ""].filter(Boolean).join(" ")}>
+            {renderEditorNodePreview(node)}
+          </div>
         </div>
         {helpText ? (
           <Typography.Text type="secondary" className="editor-node-card__help">

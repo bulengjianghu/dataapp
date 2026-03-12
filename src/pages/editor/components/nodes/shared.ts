@@ -16,15 +16,6 @@ export const defaultLayoutGroup: PropertyGroupSchema = {
         { label: "整行", value: 24 },
       ],
     },
-    {
-      key: "order",
-      label: "排序",
-      target: "layout",
-      control: "number",
-      min: 0,
-      step: 1,
-      placeholder: "值越小越靠前",
-    },
   ],
 };
 

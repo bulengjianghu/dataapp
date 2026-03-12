@@ -120,6 +120,18 @@
 
 .editor-node-card {
   cursor: grab;
+  position: relative;
+}
+
+.editor-node-card__body {
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+}
+
+.editor-node-card__content {
+  width: 100%;
+  justify-content: center;
 }
 
 .editor-node-card.is-dragging {
@@ -134,14 +146,29 @@
   border-style: dashed;
 }
 
+.editor-node-card__preview-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
 .editor-node-card__preview {
   min-height: 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .editor-node-card__preview .ant-input-number,
 .editor-node-card__preview .ant-picker,
 .editor-node-card__preview .ant-select {
   width: 100%;
+}
+
+.editor-node-card__preview,
+.editor-node-card__preview * {
+  pointer-events: none;
 }
 
 .editor-node-card__help {
@@ -151,6 +178,18 @@
 .editor-node-card__required {
   width: fit-content;
   margin: 0;
+}
+
+.editor-node-card__required-mark {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  color: #ff4d4f;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .editor-container {

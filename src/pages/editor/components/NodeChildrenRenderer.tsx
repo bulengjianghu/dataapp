@@ -28,24 +28,12 @@ export function NodeChildrenRenderer({
   const { active, over } = useDndContext();
   const activeSource = active?.data.current?.source;
   const showInsertMarkers = activeSource === "node" || activeSource === "palette";
-  const orderedChildIds = [...childIds].sort((leftId, rightId) => {
-    const leftNode = nodesById[leftId];
-    const rightNode = nodesById[rightId];
-    const leftOrder = typeof leftNode?.layout.order === "number" ? leftNode.layout.order : Number.MAX_SAFE_INTEGER;
-    const rightOrder = typeof rightNode?.layout.order === "number" ? rightNode.layout.order : Number.MAX_SAFE_INTEGER;
-
-    if (leftOrder !== rightOrder) {
-      return leftOrder - rightOrder;
-    }
-
-    return childIds.indexOf(leftId) - childIds.indexOf(rightId);
-  });
   const { setNodeRef: setEndDropRef } = useDroppable({
     id: `drop:end:${parentId}`,
     data: {
       type: "children-end",
       parentId,
-      index: orderedChildIds.length,
+      index: childIds.length,
     },
   });
   const showInsertAtEnd =
@@ -59,7 +47,7 @@ export function NodeChildrenRenderer({
 
   return (
     <>
-      {orderedChildIds.map((childId) => {
+      {childIds.map((childId) => {
         if (!nodesById[childId]) {
           return (
             <Card key={childId} size="small" className={`editor-node-missing ${depthClass(depth)}`}>

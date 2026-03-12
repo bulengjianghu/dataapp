@@ -77,32 +77,6 @@ function isDescendant(nodesById: NodesById, ancestorId: string, maybeDescendantI
   return ancestor.childrenIds.some((childId) => isDescendant(nodesById, childId, maybeDescendantId));
 }
 
-function reorderParentChildrenByOrder(nodesById: NodesById, parentId: string) {
-  const parent = nodesById[parentId];
-  if (!parent) {
-    return;
-  }
-
-  const indexedChildren = parent.childrenIds.map((childId, index) => ({
-    childId,
-    index,
-    order: nodesById[childId]?.layout.order,
-  }));
-
-  indexedChildren.sort((left, right) => {
-    const leftOrder = typeof left.order === "number" ? left.order : Number.MAX_SAFE_INTEGER;
-    const rightOrder = typeof right.order === "number" ? right.order : Number.MAX_SAFE_INTEGER;
-
-    if (leftOrder !== rightOrder) {
-      return leftOrder - rightOrder;
-    }
-
-    return left.index - right.index;
-  });
-
-  parent.childrenIds = indexedChildren.map((item) => item.childId);
-}
-
 const formSchemaSlice = createSlice({
   name: "formSchema",
   initialState,
@@ -203,10 +177,6 @@ const formSchemaSlice = createSlice({
         ...node.layout,
         ...action.payload.patch,
       };
-
-      if (node.parentId && typeof action.payload.patch.order === "number") {
-        reorderParentChildrenByOrder(state.nodesById, node.parentId);
-      }
 
       state.dirty = true;
     },

@@ -88,7 +88,14 @@
 
 .editor-node-entry {
   position: relative;
-  margin-bottom: 8px;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.editor-node-grid {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .editor-node-insert-marker {
@@ -104,6 +111,7 @@
 .editor-node-end-dropzone {
   position: relative;
   min-height: 16px;
+  grid-column: 1 / -1;
 }
 
 .editor-node-end-dropzone .editor-node-insert-marker {
@@ -124,6 +132,25 @@
 
 .editor-node-card.is-container {
   border-style: dashed;
+}
+
+.editor-node-card__preview {
+  min-height: 40px;
+}
+
+.editor-node-card__preview .ant-input-number,
+.editor-node-card__preview .ant-picker,
+.editor-node-card__preview .ant-select {
+  width: 100%;
+}
+
+.editor-node-card__help {
+  display: block;
+}
+
+.editor-node-card__required {
+  width: fit-content;
+  margin: 0;
 }
 
 .editor-container {
@@ -150,10 +177,27 @@
   min-height: calc(100vh - 180px);
 }
 
+.editor-property-panel__meta {
+  margin: 4px 0 0;
+}
+
 .editor-property-panel__empty {
   display: grid;
   place-items: center;
   min-height: calc(100vh - 220px);
+}
+
+.editor-property-group + .editor-property-group {
+  padding-top: 4px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.editor-property-group__title {
+  margin: 0 0 8px !important;
+}
+
+.editor-property-group__item {
+  margin-bottom: 12px !important;
 }
 
 .editor-palette__hint {

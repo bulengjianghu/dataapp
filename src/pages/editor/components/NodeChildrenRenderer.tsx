@@ -28,12 +28,24 @@ export function NodeChildrenRenderer({
   const { active, over } = useDndContext();
   const activeSource = active?.data.current?.source;
   const showInsertMarkers = activeSource === "node" || activeSource === "palette";
+  const orderedChildIds = [...childIds].sort((leftId, rightId) => {
+    const leftNode = nodesById[leftId];
+    const rightNode = nodesById[rightId];
+    const leftOrder = typeof leftNode?.layout.order === "number" ? leftNode.layout.order : Number.MAX_SAFE_INTEGER;
+    const rightOrder = typeof rightNode?.layout.order === "number" ? rightNode.layout.order : Number.MAX_SAFE_INTEGER;
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return childIds.indexOf(leftId) - childIds.indexOf(rightId);
+  });
   const { setNodeRef: setEndDropRef } = useDroppable({
     id: `drop:end:${parentId}`,
     data: {
       type: "children-end",
       parentId,
-      index: childIds.length,
+      index: orderedChildIds.length,
     },
   });
   const showInsertAtEnd =
@@ -47,7 +59,7 @@ export function NodeChildrenRenderer({
 
   return (
     <>
-      {childIds.map((childId) => {
+      {orderedChildIds.map((childId) => {
         if (!nodesById[childId]) {
           return (
             <Card key={childId} size="small" className={`editor-node-missing ${depthClass(depth)}`}>
@@ -57,6 +69,7 @@ export function NodeChildrenRenderer({
         }
 
         const node = nodesById[childId];
+        const span = typeof node.layout.span === "number" ? Math.max(6, Math.min(24, node.layout.span)) : 24;
         const showInsertBefore =
           over?.data.current?.type === "node" &&
           over.data.current.nodeId === childId &&
@@ -64,7 +77,11 @@ export function NodeChildrenRenderer({
 
         if (node.type !== "container") {
           return (
-            <div key={childId} className={`editor-node-entry ${depthClass(depth)}`}>
+            <div
+              key={childId}
+              className={`editor-node-entry ${depthClass(depth)}`}
+              style={{ gridColumn: `span ${span}` }}
+            >
               {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
               <EditorNodeCard node={node} depth={depth} selected={selectedNodeKey === node.id} onSelect={onSelect} />
             </div>
@@ -72,7 +89,11 @@ export function NodeChildrenRenderer({
         }
 
         return (
-          <div key={childId} className={`editor-node-entry ${depthClass(depth)}`}>
+          <div
+            key={childId}
+            className={`editor-node-entry ${depthClass(depth)}`}
+            style={{ gridColumn: `span ${span}` }}
+          >
             {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
             <ContainerEditorWrapper
               node={node}

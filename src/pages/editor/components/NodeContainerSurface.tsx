@@ -65,15 +65,17 @@ export function NodeContainerSurface({
       onClick={() => onSelect(containerId)}
     >
       {childIds.length > 0 ? (
-        <NodeChildrenRenderer
-          nodesById={nodesById}
-          childIds={childIds}
-          depth={droppableType === "form-root" ? 0 : 1}
-          emptyText={emptyText}
-          selectedNodeKey={selectedNodeKey}
-          parentId={containerId}
-          onSelect={onSelect}
-        />
+        <div className="editor-node-grid">
+          <NodeChildrenRenderer
+            nodesById={nodesById}
+            childIds={childIds}
+            depth={droppableType === "form-root" ? 0 : 1}
+            emptyText={emptyText}
+            selectedNodeKey={selectedNodeKey}
+            parentId={containerId}
+            onSelect={onSelect}
+          />
+        </div>
       ) : (
         <div className="editor-canvas__empty">
           <Empty description={emptyText} />

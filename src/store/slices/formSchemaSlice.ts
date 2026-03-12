@@ -20,6 +20,7 @@ type AddNodePayload = {
   targetParentId: string;
   targetIndex?: number;
   props?: Record<string, unknown>;
+  layout?: Node["layout"];
 };
 
 type MoveNodePayload = {
@@ -28,7 +29,7 @@ type MoveNodePayload = {
   targetIndex?: number;
 };
 
-function createNode(type: NodeType, props?: Record<string, unknown>): Node {
+function createNode(type: NodeType, props?: Record<string, unknown>, layout?: Node["layout"]): Node {
   return {
     id: `tmp_${Math.random().toString(36).slice(2, 10)}`,
     serverId: null,
@@ -36,7 +37,7 @@ function createNode(type: NodeType, props?: Record<string, unknown>): Node {
     parentId: null,
     childrenIds: [],
     props: props ?? {},
-    layout: {},
+    layout: layout ?? {},
   };
 }
 
@@ -76,6 +77,32 @@ function isDescendant(nodesById: NodesById, ancestorId: string, maybeDescendantI
   return ancestor.childrenIds.some((childId) => isDescendant(nodesById, childId, maybeDescendantId));
 }
 
+function reorderParentChildrenByOrder(nodesById: NodesById, parentId: string) {
+  const parent = nodesById[parentId];
+  if (!parent) {
+    return;
+  }
+
+  const indexedChildren = parent.childrenIds.map((childId, index) => ({
+    childId,
+    index,
+    order: nodesById[childId]?.layout.order,
+  }));
+
+  indexedChildren.sort((left, right) => {
+    const leftOrder = typeof left.order === "number" ? left.order : Number.MAX_SAFE_INTEGER;
+    const rightOrder = typeof right.order === "number" ? right.order : Number.MAX_SAFE_INTEGER;
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return left.index - right.index;
+  });
+
+  parent.childrenIds = indexedChildren.map((item) => item.childId);
+}
+
 const formSchemaSlice = createSlice({
   name: "formSchema",
   initialState,
@@ -90,7 +117,7 @@ const formSchemaSlice = createSlice({
       state.nodesById = action.payload;
     },
     addNode(state, action: PayloadAction<AddNodePayload>) {
-      const { type, targetParentId, targetIndex, props } = action.payload;
+      const { type, targetParentId, targetIndex, props, layout } = action.payload;
       const parent = state.nodesById[targetParentId];
       if (!parent) {
         return;
@@ -99,7 +126,7 @@ const formSchemaSlice = createSlice({
         return;
       }
 
-      const node = createNode(type, props);
+      const node = createNode(type, props, layout);
       node.parentId = targetParentId;
       state.nodesById[node.id] = node;
 
@@ -142,6 +169,47 @@ const formSchemaSlice = createSlice({
       state.selectedNodeKey = nodeId;
       state.dirty = true;
     },
+    updateNodeProps(
+      state,
+      action: PayloadAction<{
+        nodeId: string;
+        patch: Record<string, unknown>;
+      }>
+    ) {
+      const node = state.nodesById[action.payload.nodeId];
+      if (!node) {
+        return;
+      }
+
+      node.props = {
+        ...node.props,
+        ...action.payload.patch,
+      };
+      state.dirty = true;
+    },
+    updateNodeLayout(
+      state,
+      action: PayloadAction<{
+        nodeId: string;
+        patch: Node["layout"];
+      }>
+    ) {
+      const node = state.nodesById[action.payload.nodeId];
+      if (!node) {
+        return;
+      }
+
+      node.layout = {
+        ...node.layout,
+        ...action.payload.patch,
+      };
+
+      if (node.parentId && typeof action.payload.patch.order === "number") {
+        reorderParentChildrenByOrder(state.nodesById, node.parentId);
+      }
+
+      state.dirty = true;
+    },
     moveNodeToContainer(state, action: PayloadAction<{ nodeId: string; containerId: string; index?: number }>) {
       const { nodeId, containerId, index } = action.payload;
       const container = state.nodesById[containerId];
@@ -173,6 +241,8 @@ export const {
   addNode,
   moveNode,
   moveNodeToContainer,
+  updateNodeProps,
+  updateNodeLayout,
   markDirty,
   resetSchemaState,
 } =

@@ -20,6 +20,7 @@ import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectFormId, selectNodesById } from "../../../store/selectors/editorSelectors";
 import { addNode, moveNode, setFormId } from "../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID } from "../../../types/schema/node";
+import { createPaletteNodePreset } from "./componentRegistry";
 
 type EditorDndStatus = {
   activeId: string | null;
@@ -185,16 +186,14 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
         dispatch(setFormId("local-draft"));
       }
       const componentKey = activeData.componentKey as string;
-      const isContainer = componentKey === "container";
+      const preset = createPaletteNodePreset(componentKey);
       dispatch(
         addNode({
-          type: isContainer ? "container" : "field",
+          type: preset.type,
           targetParentId: target.targetParentId,
           targetIndex: target.targetIndex,
-          props: {
-            component: componentKey,
-            label: isContainer ? "分组容器" : `新字段-${componentKey}`,
-          },
+          props: preset.props,
+          layout: preset.layout,
         })
       );
     }

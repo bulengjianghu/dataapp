@@ -4,9 +4,10 @@ import { containerNodeDefinition } from "./container";
 import { dateNodeDefinition } from "./date";
 import { inputNodeDefinition } from "./input";
 import { numberNodeDefinition } from "./number";
+import { pageNodeDefinition } from "./page";
 import { radioNodeDefinition } from "./radio";
 import { selectNodeDefinition } from "./select";
-import { defaultLayoutGroup, pagePropertyGroups, resolveNodeComponentKey } from "./shared";
+import { defaultLayoutGroup, resolveNodeComponentKey } from "./shared";
 import { textareaNodeDefinition } from "./textarea";
 import type { ComponentNodeDefinition, PropertyGroupSchema } from "./types";
 import { uploadNodeDefinition } from "./upload";
@@ -20,6 +21,7 @@ export type {
 } from "./types";
 
 const componentDefinitionsList: ComponentNodeDefinition[] = [
+  pageNodeDefinition,
   inputNodeDefinition,
   textareaNodeDefinition,
   numberNodeDefinition,
@@ -60,7 +62,7 @@ export function getComponentTitle(componentKey: string | undefined): string {
 
 export function resolvePropertyGroups(node: Node): PropertyGroupSchema[] {
   if (node.type === "page") {
-    return pagePropertyGroups;
+    return pageNodeDefinition.propertyGroups;
   }
 
   const componentKey = resolveNodeComponentKey(node);
@@ -81,7 +83,11 @@ export function createPaletteNodePreset(componentKey: string) {
 }
 
 export function renderEditorNodePreview(node: Node) {
-  const componentKey = resolveNodeComponentKey(node);
+  const componentKey = node.type === "page" ? "page" : resolveNodeComponentKey(node);
   const renderer = componentDefinitions[componentKey]?.renderEditorPreview;
   return renderer ? renderer(node) : null;
+}
+
+export function getPageNodeDefinition() {
+  return pageNodeDefinition;
 }

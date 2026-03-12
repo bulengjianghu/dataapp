@@ -8,6 +8,7 @@ import {
   selectSelectedNodeKey,
 } from "../../../store/selectors/editorSelectors";
 import { selectNode } from "../../../store/slices/formSchemaSlice";
+import { getPageNodeDefinition } from "./nodes";
 
 export function FormEditorRenderer() {
   const dispatch = useAppDispatch();
@@ -15,11 +16,12 @@ export function FormEditorRenderer() {
   const childrenIds = useAppSelector(selectPageChildrenIds);
   const nodesById = useAppSelector(selectNodesById);
   const selectedNodeKey = useAppSelector(selectSelectedNodeKey);
+  const pageDefinition = getPageNodeDefinition();
 
   if (!pageRoot) {
     return (
       <Card
-        title="设计画布"
+        title={pageDefinition.canvasTitle}
         size="small"
         className="editor-canvas"
         classNames={{ body: "editor-canvas__body" }}
@@ -33,7 +35,7 @@ export function FormEditorRenderer() {
 
   return (
     <Card
-      title="设计画布"
+      title={pageDefinition.canvasTitle}
       size="small"
       className="editor-canvas"
       classNames={{ body: "editor-canvas__body" }}
@@ -47,7 +49,7 @@ export function FormEditorRenderer() {
           nodesById={nodesById}
           selected={selectedNodeKey === pageRoot.id}
           selectedNodeKey={selectedNodeKey}
-          emptyText="空画布：请从左侧组件面板添加组件"
+          emptyText={pageDefinition.emptyText ?? "空画布"}
           className="editor-canvas__root"
           onSelect={(id) => dispatch(selectNode(id))}
         />

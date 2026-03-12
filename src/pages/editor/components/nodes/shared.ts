@@ -1,4 +1,3 @@
-import type { Node } from "../../../../types/schema/node";
 import type { PropertyGroupSchema } from "./types";
 
 export const defaultLayoutGroup: PropertyGroupSchema = {
@@ -57,30 +56,6 @@ export const baseFieldGroup: PropertyGroupSchema = {
   ],
 };
 
-export const pagePropertyGroups: PropertyGroupSchema[] = [
-  {
-    key: "page",
-    title: "页面",
-    fields: [
-      {
-        key: "title",
-        label: "标题",
-        target: "props",
-        control: "input",
-        placeholder: "请输入页面标题",
-      },
-      {
-        key: "description",
-        label: "说明",
-        target: "props",
-        control: "textarea",
-        rows: 3,
-        placeholder: "请输入页面说明",
-      },
-    ],
-  },
-];
-
 export function normalizeOptions(value: unknown): Array<{ label: string; value: string }> {
   if (!Array.isArray(value)) {
     return [];
@@ -96,6 +71,6 @@ export function normalizeOptions(value: unknown): Array<{ label: string; value: 
     }));
 }
 
-export function resolveNodeComponentKey(node: Node): string {
+export function resolveNodeComponentKey(node: { type: string; props: Record<string, unknown> }): string {
   return typeof node.props.component === "string" ? node.props.component : node.type === "container" ? "container" : "";
 }

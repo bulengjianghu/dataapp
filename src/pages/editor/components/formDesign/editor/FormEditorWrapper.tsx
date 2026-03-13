@@ -1,4 +1,5 @@
 import { Card, Empty } from "antd";
+import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "../../../../../store/hooks";
 import {
   selectNodesById,
@@ -17,6 +18,25 @@ export function FormEditorWrapper() {
   const nodesById = useAppSelector(selectNodesById);
   const selectedNodeKey = useAppSelector(selectSelectedNodeKey);
   const pageDefinition = getPageNodeDefinition();
+
+  useEffect(() => {
+    if (!selectedNodeKey) {
+      return;
+    }
+
+    const element = document.querySelector<HTMLElement>(`[data-editor-node-id="${selectedNodeKey}"]`);
+    if (!element) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
+    });
+  }, [selectedNodeKey]);
 
   if (!pageRoot) {
     return (

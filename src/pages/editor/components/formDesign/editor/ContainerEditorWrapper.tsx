@@ -47,6 +47,7 @@ export function ContainerEditorWrapper({
 
   return (
     <SelectionOutline
+      nodeId={node.id}
       selected={selected}
       deleteMessage="删除容器后，其下所有子组件会一并删除"
       onDelete={() => onDelete?.(node.id)}

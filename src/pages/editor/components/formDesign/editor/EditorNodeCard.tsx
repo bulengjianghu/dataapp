@@ -48,6 +48,7 @@ function EditorNodeCardInner({
 
   return (
     <SelectionOutline
+      nodeId={node.id}
       selected={selected}
       deleteMessage="删除后不可恢复"
       onDelete={() => onDelete?.(node.id)}

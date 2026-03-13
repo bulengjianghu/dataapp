@@ -1,5 +1,5 @@
 import { DeleteOutlined, FileTextOutlined, FolderOpenOutlined } from "@ant-design/icons";
-import { Button, Popconfirm, Tree, Typography, type TreeProps } from "antd";
+import { Button, Popconfirm, Tooltip, Tree, Typography, type TreeProps } from "antd";
 import type { DataNode } from "antd/es/tree";
 import { useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../../store/hooks";
@@ -121,15 +121,19 @@ export function ComponentOutlineTree() {
                 {node.type === "container" || node.type === "page" ? <FolderOpenOutlined /> : <FileTextOutlined />}
               </span>
               <div className="editor-outline-tree__text">
-                <Typography.Text className="editor-outline-tree__label">
-                  {Boolean(node.props.required) && node.type !== "page" ? (
-                    <span className="editor-outline-tree__required">*</span>
-                  ) : null}
-                  {getNodeDisplayLabel(node)}
-                </Typography.Text>
-                <Typography.Text type="secondary" className="editor-outline-tree__meta">
-                  {getNodeMetaLabel(node)}
-                </Typography.Text>
+                <div className="editor-outline-tree__line">
+                  <Tooltip title={getNodeDisplayLabel(node)} mouseEnterDelay={0.3}>
+                    <Typography.Text className="editor-outline-tree__label">
+                      {Boolean(node.props.required) && node.type !== "page" ? (
+                        <span className="editor-outline-tree__required">*</span>
+                      ) : null}
+                      {getNodeDisplayLabel(node)}
+                    </Typography.Text>
+                  </Tooltip>
+                  <Typography.Text type="secondary" className="editor-outline-tree__meta">
+                    {getNodeMetaLabel(node)}
+                  </Typography.Text>
+                </div>
               </div>
             </div>
             {node.id !== PAGE_NODE_ID ? (

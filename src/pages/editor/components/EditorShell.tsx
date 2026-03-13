@@ -1,4 +1,4 @@
-import { RedoOutlined, SaveOutlined, UndoOutlined } from "@ant-design/icons";
+import { RedoOutlined, UndoOutlined } from "@ant-design/icons";
 import { Badge, Button, Space, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBlocker, useNavigate } from "react-router-dom";
@@ -123,20 +123,16 @@ function EditorShellContent() {
     return result;
   };
 
-  const saveDraft = async (mode: "manual" | "auto" = "manual") => {
+  const saveDraft = async () => {
     if (saving || publishing) {
       return null;
     }
 
     setSaving(true);
-    setAutoSavePending(mode === "auto");
 
     try {
       const result = await saveDraftLocally({ formId, nodesById });
       commitSavedState(result);
-      if (mode === "manual") {
-        messageApi.success("草稿已保存到本地");
-      }
       return result;
     } finally {
       setSaving(false);
@@ -170,7 +166,7 @@ function EditorShellContent() {
 
     setAutoSavePending(true);
     const timer = window.setTimeout(() => {
-      void saveDraft("auto");
+      void saveDraft();
     }, AUTO_SAVE_DELAY);
 
     return () => {
@@ -283,9 +279,6 @@ function EditorShellContent() {
           </Button>
           <Button icon={<RedoOutlined />} disabled={redoCount === 0} onClick={() => dispatch(redo())}>
             重做
-          </Button>
-          <Button icon={<SaveOutlined />} loading={saving} disabled={!dirty && !formId} onClick={() => void saveDraft()}>
-            保存草稿
           </Button>
           <Button onClick={() => navigate("/preview")}>预览</Button>
           <Button type="primary" loading={publishing} onClick={() => void publishForm()}>

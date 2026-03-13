@@ -81,6 +81,7 @@ export function EditorContainerSurface({
   return (
     <div
       ref={setNodeRef}
+      data-editor-node-id={containerId}
       className={
         variant === "root"
           ? ["editor-canvas__root", childIds.length === 0 ? "is-empty" : "", isOver ? "is-over" : "", selected ? "is-selected" : ""]

@@ -31,13 +31,19 @@
 .editor-shell__panel {
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 }
 
-.editor-shell__panel .ant-card,
-.editor-shell__panel .ant-card-body {
+.editor-shell__panel .ant-card {
   height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-shell__panel .ant-card-body {
+  flex: 1;
   min-height: 0;
 }
 
@@ -303,10 +309,17 @@
 
 .editor-outline-tree {
   min-height: 0;
+  height: 100%;
+  overflow: auto;
 }
 
 .editor-outline-tree .ant-tree {
   background: transparent;
+  min-width: max-content;
+}
+
+.editor-outline-tree .ant-tree-list-holder-inner {
+  min-width: max-content;
 }
 
 .editor-outline-tree .ant-tree-node-content-wrapper {
@@ -317,21 +330,26 @@
   align-items: center;
 }
 
+.editor-outline-tree .ant-tree-indent-unit {
+  width: 12px !important;
+}
+
 .editor-outline-tree__item {
-  min-height: 36px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  min-width: max-content;
 }
 
 .editor-outline-tree__main {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .editor-outline-tree__icon {
@@ -342,22 +360,37 @@
 .editor-outline-tree__text {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  flex: 1;
+}
+
+.editor-outline-tree__line {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1;
 }
 
 .editor-outline-tree__label,
 .editor-outline-tree__meta {
   display: block;
-  line-height: 1.2;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .editor-outline-tree__label {
   color: #262626;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+  flex: 0 1 auto;
 }
 
 .editor-outline-tree__meta {
-  font-size: 12px;
+  font-size: 11px;
+  flex: 0 0 auto;
 }
 
 .editor-outline-tree__required {
@@ -380,7 +413,9 @@
 }
 
 .editor-property-panel__body {
-  min-height: calc(100vh - 180px);
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
 }
 
 .editor-property-panel__meta {
@@ -408,6 +443,7 @@
 
 .selection-outline {
   position: relative;
+  scroll-margin: 32px;
 }
 
 .selection-outline__stroke {

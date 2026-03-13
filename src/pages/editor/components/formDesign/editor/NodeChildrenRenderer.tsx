@@ -1,4 +1,4 @@
-import { useDndContext, useDroppable } from "@dnd-kit/core";
+import { useDndContext } from "@dnd-kit/core";
 import { Card, Typography } from "antd";
 import type { NodesById } from "../../../../../types/schema/node";
 import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
@@ -30,18 +30,6 @@ export function NodeChildrenRenderer({
   const { active, over } = useDndContext();
   const activeSource = active?.data.current?.source;
   const showInsertMarkers = activeSource === "node" || activeSource === "palette";
-  const { setNodeRef: setEndDropRef } = useDroppable({
-    id: `drop:end:${parentId}`,
-    data: {
-      type: "children-end",
-      parentId,
-      index: childIds.length,
-    },
-  });
-  const showInsertAtEnd =
-    showInsertMarkers &&
-    over?.data.current?.type === "children-end" &&
-    over.data.current.parentId === parentId;
 
   if (childIds.length === 0) {
     return <Typography.Text type="secondary">{emptyText}</Typography.Text>;
@@ -103,9 +91,6 @@ export function NodeChildrenRenderer({
           </div>
         );
       })}
-      <div ref={setEndDropRef} className="editor-node-end-dropzone">
-        {showInsertAtEnd ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
-      </div>
     </>
   );
 }

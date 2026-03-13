@@ -56,10 +56,8 @@ export function EditorContainerSurface({
     showHighlight &&
     (variant === "root"
       ? overType === "form-root" ||
-        (overType === "children-end" && overParentId === containerId) ||
         (overType === "node" && overNodeParentId === containerId)
       : (overType === "container" && overContainerId === containerId) ||
-        (overType === "children-end" && overParentId === containerId) ||
         (overType === "node" && overNodeParentId === containerId));
 
   const content = (

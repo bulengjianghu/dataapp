@@ -127,16 +127,6 @@
   pointer-events: none;
 }
 
-.editor-node-end-dropzone {
-  position: relative;
-  min-height: 16px;
-  grid-column: 1 / -1;
-}
-
-.editor-node-end-dropzone .editor-node-insert-marker {
-  top: 7px;
-}
-
 .editor-node-card {
   cursor: grab;
   position: relative;

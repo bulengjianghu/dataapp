@@ -124,7 +124,7 @@ export function ComponentPalette() {
                 {categories.map((category) => {
                   const group = paletteItems.filter((item) => item.category === category);
                   return (
-                    <Card key={category} size="small" title={category}>
+                    <Card key={category} size="small" title={category} className="editor-palette__group-card">
                       <div className="editor-palette__grid">
                         {group.map((item) => (
                           <DraggablePaletteItem

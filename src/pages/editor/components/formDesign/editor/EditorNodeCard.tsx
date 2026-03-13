@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Card, Flex, Typography } from "antd";
-import type { MouseEvent } from "react";
+import { memo, type MouseEvent } from "react";
 import type { Node } from "../../../../../types/schema/node";
 import { renderEditorNodePreview } from "../../nodes";
 import { SelectionOutline } from "./SelectionOutline";
@@ -9,7 +9,7 @@ function depthClass(depth: number) {
   return `editor-depth-${Math.min(depth, 6)}`;
 }
 
-export function EditorNodeCard({
+function EditorNodeCardInner({
   node,
   depth,
   selected,
@@ -92,3 +92,12 @@ export function EditorNodeCard({
     </SelectionOutline>
   );
 }
+
+export const EditorNodeCard = memo(
+  EditorNodeCardInner,
+  (previousProps, nextProps) =>
+    previousProps.node === nextProps.node &&
+    previousProps.depth === nextProps.depth &&
+    previousProps.selected === nextProps.selected &&
+    previousProps.interactive === nextProps.interactive
+);

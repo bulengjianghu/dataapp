@@ -52,6 +52,19 @@ export async function saveDraftLocally({
   formId: string | null;
   nodesById: NodesById;
 }) {
+  return persistDraftLocally({
+    formId,
+    nodesById,
+  });
+}
+
+export function persistDraftLocally({
+  formId,
+  nodesById,
+}: {
+  formId: string | null;
+  nodesById: NodesById;
+}) {
   const nextFormId = formId ?? `draft_${Date.now()}`;
   const nextNodesById = ensureServerIds(nodesById);
   const drafts = readStorage(DRAFT_STORAGE_KEY);

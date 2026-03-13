@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import type { FormSchemaSnapshot } from "../history";
 import { PAGE_NODE_ID, createEmptyNodesById, type Node, type NodeType, type NodesById } from "../../types/schema/node";
 
 export type FormSchemaState = {
@@ -231,6 +232,9 @@ const formSchemaSlice = createSlice({
     markDirty(state, action: PayloadAction<boolean>) {
       state.dirty = action.payload;
     },
+    restoreSchemaSnapshot(_state, action: PayloadAction<FormSchemaSnapshot>) {
+      return action.payload;
+    },
     resetSchemaState() {
       return initialState;
     },
@@ -249,6 +253,7 @@ export const {
   updateNodeProps,
   updateNodeLayout,
   markDirty,
+  restoreSchemaSnapshot,
   resetSchemaState,
 } =
   formSchemaSlice.actions;

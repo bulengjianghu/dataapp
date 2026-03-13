@@ -1,7 +1,33 @@
-import { InboxOutlined } from "@ant-design/icons";
-import { Button, Space, Typography, Upload } from "antd";
+import { Upload } from "antd";
+import type { UploadFile, UploadProps } from "antd";
+import { useState } from "react";
 import type { ComponentNodeDefinition } from "./types";
 import { baseFieldGroup, defaultLayoutGroup } from "./shared";
+import { UploadFieldContent } from "./UploadFieldContent";
+
+function UploadRuntimeField({ buttonText }: { buttonText: string }) {
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+
+  const handleChange: UploadProps["onChange"] = ({ fileList: nextFileList }) => {
+    setFileList(nextFileList);
+  };
+
+  return (
+    <Upload
+      className="upload-runtime-field"
+      beforeUpload={() => false}
+      showUploadList={false}
+      fileList={fileList}
+      onChange={handleChange}
+    >
+      <UploadFieldContent
+        buttonText={buttonText}
+        interactive
+        fileNames={fileList.map((file) => file.name)}
+      />
+    </Upload>
+  );
+}
 
 export const uploadNodeDefinition: ComponentNodeDefinition = {
   key: "upload",
@@ -31,18 +57,10 @@ export const uploadNodeDefinition: ComponentNodeDefinition = {
     defaultLayoutGroup,
   ],
   renderEditorPreview: (node) => (
-    <Space direction="vertical" size={8}>
-      <Button icon={<InboxOutlined />} disabled>
-        {(node.props.buttonText as string | undefined) ?? "点击上传"}
-      </Button>
-      <Typography.Text type="secondary">支持拖拽或点击上传附件</Typography.Text>
-    </Space>
+    <UploadFieldContent
+      buttonText={(node.props.buttonText as string | undefined) ?? "点击上传"}
+      interactive={false}
+    />
   ),
-  renderRuntime: (node) => (
-    <Upload beforeUpload={() => false} showUploadList={false}>
-      <Button icon={<InboxOutlined />}>
-        {(node.props.buttonText as string | undefined) ?? "点击上传"}
-      </Button>
-    </Upload>
-  ),
+  renderRuntime: (node) => <UploadRuntimeField buttonText={(node.props.buttonText as string | undefined) ?? "点击上传"} />,
 };

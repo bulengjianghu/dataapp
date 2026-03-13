@@ -1,5 +1,4 @@
 import { Card, Empty } from "antd";
-import { NodeContainerSurface } from "./NodeContainerSurface";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import {
   selectNodesById,
@@ -8,6 +7,7 @@ import {
   selectSelectedNodeKey,
 } from "../../../store/selectors/editorSelectors";
 import { deleteNode, selectNode } from "../../../store/slices/formSchemaSlice";
+import { EditorRootSurface } from "./EditorRootSurface";
 import { getPageNodeDefinition } from "./nodes";
 
 export function FormEditorRenderer() {
@@ -41,16 +41,13 @@ export function FormEditorRenderer() {
       classNames={{ body: "editor-canvas__body" }}
     >
       <div className="editor-canvas__surface">
-        <NodeContainerSurface
-          droppableId="drop:form-root"
-          droppableType="form-root"
+        <EditorRootSurface
           containerId={pageRoot.id}
           childIds={childrenIds}
           nodesById={nodesById}
           selected={selectedNodeKey === pageRoot.id}
           selectedNodeKey={selectedNodeKey}
           emptyText={pageDefinition.emptyText ?? "空画布"}
-          className="editor-canvas__root"
           onSelect={(id) => dispatch(selectNode(id))}
           onDelete={(id) => dispatch(deleteNode(id))}
         />

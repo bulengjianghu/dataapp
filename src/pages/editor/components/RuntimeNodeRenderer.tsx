@@ -1,5 +1,6 @@
 import { Empty, Flex, Typography } from "antd";
 import type { Node, NodesById } from "../../../types/schema/node";
+import { RuntimeContainerFrame } from "./RuntimeContainerFrame";
 import { componentDefinitions, getPageNodeDefinition, renderRuntimeNodeContent } from "./nodes";
 
 function RuntimeField({
@@ -37,27 +38,24 @@ export function RuntimeNodeRenderer({
 }) {
   if (node.type === "container") {
     return (
-      <div className="runtime-node__container">
-        <div className="runtime-node__children-grid">
-          {node.childrenIds.length > 0 ? (
-            node.childrenIds.map((childId) => {
-              const childNode = nodesById[childId];
-              if (!childNode) {
-                return null;
-              }
+      <RuntimeContainerFrame
+        hasChildren={node.childrenIds.length > 0}
+        emptyText="容器暂无字段"
+      >
+        {node.childrenIds.map((childId) => {
+          const childNode = nodesById[childId];
+          if (!childNode) {
+            return null;
+          }
 
-              const span = typeof childNode.layout.span === "number" ? Math.max(6, Math.min(24, childNode.layout.span)) : 24;
-              return (
-                <div key={childId} style={{ gridColumn: `span ${span}` }}>
-                  <RuntimeNodeRenderer node={childNode} nodesById={nodesById} />
-                </div>
-              );
-            })
-          ) : (
-            <Empty description="容器暂无字段" />
-          )}
-        </div>
-      </div>
+          const span = typeof childNode.layout.span === "number" ? Math.max(6, Math.min(24, childNode.layout.span)) : 24;
+          return (
+            <div key={childId} style={{ gridColumn: `span ${span}` }}>
+              <RuntimeNodeRenderer node={childNode} nodesById={nodesById} />
+            </div>
+          );
+        })}
+      </RuntimeContainerFrame>
     );
   }
 

@@ -1,7 +1,8 @@
 import { InfoCircleOutlined } from "@ant-design/icons";
-import { Card, Empty, Flex, Tooltip, Typography } from "antd";
+import { Card, Empty, Flex, Tooltip } from "antd";
 import { useAppSelector } from "../../../store/hooks";
 import { selectNodesById, selectPageChildrenIds, selectPageRootNode } from "../../../store/selectors/editorSelectors";
+import { ContainerLayout } from "./ContainerLayout";
 import { RuntimeNodeRenderer } from "./RuntimeNodeRenderer";
 import { getPageNodeDefinition } from "./nodes";
 
@@ -17,6 +18,7 @@ export function FormPreviewRenderer() {
 
   const title = typeof pageRoot.props.title === "string" && pageRoot.props.title.trim() ? pageRoot.props.title : "未命名表单";
   const description = typeof pageRoot.props.description === "string" ? pageRoot.props.description : "";
+  const emptyText = pageDefinition.emptyText ?? "页面暂无字段";
 
   return (
     <Card
@@ -33,24 +35,24 @@ export function FormPreviewRenderer() {
       className="preview-page"
     >
       <Flex vertical gap={16}>
-        <div className="runtime-node__children-grid">
-          {childrenIds.length > 0 ? (
-            childrenIds.map((childId) => {
-              const childNode = nodesById[childId];
-              if (!childNode) {
-                return null;
-              }
-              const span = typeof childNode.layout.span === "number" ? Math.max(6, Math.min(24, childNode.layout.span)) : 24;
-              return (
-                <div key={childId} style={{ gridColumn: `span ${span}` }}>
-                  <RuntimeNodeRenderer node={childNode} nodesById={nodesById} />
-                </div>
-              );
-            })
-          ) : (
-            <Empty description={pageDefinition.emptyText} />
-          )}
-        </div>
+        <ContainerLayout
+          hasChildren={childrenIds.length > 0}
+          emptyText={emptyText}
+          emptyFallback={<Empty description={emptyText} />}
+        >
+          {childrenIds.map((childId) => {
+            const childNode = nodesById[childId];
+            if (!childNode) {
+              return null;
+            }
+            const span = typeof childNode.layout.span === "number" ? Math.max(6, Math.min(24, childNode.layout.span)) : 24;
+            return (
+              <div key={childId} style={{ gridColumn: `span ${span}` }}>
+                <RuntimeNodeRenderer node={childNode} nodesById={nodesById} />
+              </div>
+            );
+          })}
+        </ContainerLayout>
       </Flex>
     </Card>
   );

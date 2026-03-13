@@ -1,13 +1,13 @@
-import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { Tag } from "antd";
+import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import type { MouseEvent } from "react";
 import type { Node, NodesById } from "../../../types/schema/node";
-import { NodeContainerSurface } from "./NodeContainerSurface";
+import { EditorContainerFrame } from "./EditorContainerFrame";
 import { SelectionOutline } from "./SelectionOutline";
+import { NodeChildrenRenderer } from "./NodeChildrenRenderer";
 
 export function ContainerEditorWrapper({
   node,
-  depth,
+  depth: _depth,
   selected,
   onSelect,
   onDelete,
@@ -24,12 +24,20 @@ export function ContainerEditorWrapper({
   selectedNodeKey: string | null;
   interactive?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: `node:${node.id}`,
     disabled: !interactive,
     data: {
       source: "node",
       nodeId: node.id,
+    },
+  });
+  const { setNodeRef: setContainerDropRef } = useDroppable({
+    id: `drop:container:${node.id}`,
+    disabled: !interactive,
+    data: {
+      type: "container",
+      containerId: node.id,
     },
   });
   const { setNodeRef: setHeadDropRef, isOver: isOverHead } = useDroppable({
@@ -40,10 +48,23 @@ export function ContainerEditorWrapper({
       nodeId: node.id,
     },
   });
+  const { active, over } = useDndContext();
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
     onSelect(node.id);
   };
+  const activeSource = active?.data.current?.source;
+  const showHighlight = activeSource === "node" || activeSource === "palette";
+  const overType = over?.data.current?.type;
+  const overContainerId = over?.data.current?.containerId;
+  const overParentId = over?.data.current?.parentId;
+  const overNodeId = over?.data.current?.nodeId;
+  const overNodeParentId = typeof overNodeId === "string" ? nodesById[overNodeId]?.parentId : null;
+  const isOver =
+    showHighlight &&
+    ((overType === "container" && overContainerId === node.id) ||
+      (overType === "children-end" && overParentId === node.id) ||
+      (overType === "node" && overNodeParentId === node.id));
 
   return (
     <SelectionOutline
@@ -52,7 +73,7 @@ export function ContainerEditorWrapper({
       onDelete={() => onDelete?.(node.id)}
     >
       <div
-        ref={setNodeRef}
+        ref={setDragRef}
         {...listeners}
         {...attributes}
         className={[
@@ -64,35 +85,30 @@ export function ContainerEditorWrapper({
           .join(" ")}
         onClick={interactive ? handleClick : undefined}
       >
-        <NodeContainerSurface
-          droppableId={`drop:container:${node.id}`}
-          droppableType="container"
-          containerId={node.id}
-          childIds={node.childrenIds}
-          nodesById={nodesById}
-          selected={false}
-        selectedNodeKey={selectedNodeKey}
-        emptyText="容器为空（可投放区域）"
-        className="editor-container__children"
-        onSelect={onSelect}
-        onDelete={(nodeId) => onDelete?.(nodeId)}
-      >
-          <div
-            ref={setHeadDropRef}
-            className={["editor-container__meta", "editor-container__head-dropzone", isOverHead ? "is-over" : ""]
-              .filter(Boolean)
-              .join(" ")}
+        <div
+          ref={setContainerDropRef}
+          onClick={() => onSelect(node.id)}
+        >
+          <EditorContainerFrame
+            isOver={isOver}
+            required={Boolean(node.props.required)}
+            hasChildren={node.childrenIds.length > 0}
+            emptyText="容器为空（可投放区域）"
+            headDropRef={setHeadDropRef}
+            headDropOver={isOverHead}
           >
-            {Boolean(node.props.required) ? (
-              <span aria-label="必填" className="editor-node-card__required-mark editor-container__required-mark">
-                *
-              </span>
-            ) : null}
-            <Tag color="blue" className="editor-node-card__required">
-              容器
-            </Tag>
-          </div>
-        </NodeContainerSurface>
+            <NodeChildrenRenderer
+              nodesById={nodesById}
+              childIds={node.childrenIds}
+              depth={1}
+              emptyText="容器为空（可投放区域）"
+              selectedNodeKey={selectedNodeKey}
+              parentId={node.id}
+              onSelect={onSelect}
+              onDelete={(nodeId) => onDelete?.(nodeId)}
+            />
+          </EditorContainerFrame>
+        </div>
       </div>
     </SelectionOutline>
   );

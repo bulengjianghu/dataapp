@@ -1,6 +1,6 @@
-import { DatePicker } from "antd";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup } from "./shared";
+import type { ComponentNodeDefinition } from "../types";
+import { baseFieldGroup, defaultLayoutGroup } from "../shared";
+import { DateFieldContent } from "./DateFieldContent";
 
 export const dateNodeDefinition: ComponentNodeDefinition = {
   key: "date",
@@ -29,14 +29,10 @@ export const dateNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => (
-    <DatePicker
-      disabled
-      style={{ width: "100%" }}
+  renderContent: (node, mode) => (
+    <DateFieldContent
       placeholder={(node.props.placeholder as string | undefined) ?? "请选择日期"}
+      interactive={mode === "runtime"}
     />
-  ),
-  renderRuntime: (node) => (
-    <DatePicker style={{ width: "100%" }} placeholder={(node.props.placeholder as string | undefined) ?? "请选择日期"} />
   ),
 };

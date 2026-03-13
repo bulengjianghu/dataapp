@@ -1,6 +1,6 @@
 import { Empty, Flex, Typography } from "antd";
 import type { Node, NodesById } from "../../../types/schema/node";
-import { componentDefinitions, getPageNodeDefinition } from "./nodes";
+import { componentDefinitions, getPageNodeDefinition, renderRuntimeNodeContent } from "./nodes";
 
 function RuntimeField({
   node,
@@ -22,7 +22,7 @@ function RuntimeField({
         {Boolean(node.props.required) ? <span className="runtime-node__required">*</span> : null}
         {label}
       </Typography.Text>
-      {definition.renderRuntime(node)}
+      {renderRuntimeNodeContent(node)}
       {helpText ? <Typography.Text type="secondary">{helpText}</Typography.Text> : null}
     </Flex>
   );
@@ -62,7 +62,7 @@ export function RuntimeNodeRenderer({
   }
 
   if (node.type === "page") {
-    return getPageNodeDefinition().renderRuntime(node);
+    return renderRuntimeNodeContent(node) ?? getPageNodeDefinition().renderContent(node, "runtime");
   }
 
   return <RuntimeField node={node} />;

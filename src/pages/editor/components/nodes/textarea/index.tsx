@@ -1,6 +1,6 @@
-import { Input } from "antd";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup } from "./shared";
+import type { ComponentNodeDefinition } from "../types";
+import { baseFieldGroup, defaultLayoutGroup } from "../shared";
+import { TextareaFieldContent } from "./TextareaFieldContent";
 
 export const textareaNodeDefinition: ComponentNodeDefinition = {
   key: "textarea",
@@ -30,18 +30,11 @@ export const textareaNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => (
-    <Input.TextArea
-      disabled
+  renderContent: (node, mode) => (
+    <TextareaFieldContent
       rows={3}
       placeholder={(node.props.placeholder as string | undefined) ?? "请输入详细内容"}
-      value=""
-    />
-  ),
-  renderRuntime: (node) => (
-    <Input.TextArea
-      rows={3}
-      placeholder={(node.props.placeholder as string | undefined) ?? "请输入详细内容"}
+      interactive={mode === "runtime"}
     />
   ),
 };

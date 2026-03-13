@@ -33,14 +33,9 @@ export const pageNodeDefinition: ComponentNodeDefinition = {
       ],
     },
   ],
-  renderEditorPreview: (node) => (
+  renderContent: (node, mode) => (
     <Typography.Text type="secondary">
-      {(node.props.description as string | undefined) || "页面根节点用于承载整个表单画布"}
-    </Typography.Text>
-  ),
-  renderRuntime: (node) => (
-    <Typography.Text type="secondary">
-      {(node.props.description as string | undefined) || "请填写表单内容"}
+      {(node.props.description as string | undefined) || (mode === "editor" ? "页面根节点用于承载整个表单画布" : "请填写表单内容")}
     </Typography.Text>
   ),
 };

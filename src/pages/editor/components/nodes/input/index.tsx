@@ -1,6 +1,6 @@
-import { Input } from "antd";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup } from "./shared";
+import type { ComponentNodeDefinition } from "../types";
+import { baseFieldGroup, defaultLayoutGroup } from "../shared";
+import { InputFieldContent } from "./InputFieldContent";
 
 export const inputNodeDefinition: ComponentNodeDefinition = {
   key: "input",
@@ -29,14 +29,10 @@ export const inputNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => (
-    <Input
-      disabled
+  renderContent: (node, mode) => (
+    <InputFieldContent
       placeholder={(node.props.placeholder as string | undefined) ?? "请输入"}
-      value=""
+      interactive={mode === "runtime"}
     />
-  ),
-  renderRuntime: (node) => (
-    <Input placeholder={(node.props.placeholder as string | undefined) ?? "请输入"} />
   ),
 };

@@ -34,17 +34,17 @@ export const containerNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => (
-    <Space direction="vertical" size={6}>
-      <Tag color="blue">容器</Tag>
+  renderContent: (node, mode) =>
+    mode === "editor" ? (
+      <Space direction="vertical" size={6}>
+        <Tag color="blue">容器</Tag>
+        <Typography.Text type="secondary">
+          {(node.props.description as string | undefined) ?? "将字段拖入此容器中"}
+        </Typography.Text>
+      </Space>
+    ) : (
       <Typography.Text type="secondary">
         {(node.props.description as string | undefined) ?? "将字段拖入此容器中"}
       </Typography.Text>
-    </Space>
-  ),
-  renderRuntime: (node) => (
-    <Typography.Text type="secondary">
-      {(node.props.description as string | undefined) ?? "将字段拖入此容器中"}
-    </Typography.Text>
-  ),
+    ),
 };

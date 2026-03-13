@@ -1,6 +1,6 @@
-import { Radio } from "antd";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup, normalizeOptions } from "./shared";
+import type { ComponentNodeDefinition } from "../types";
+import { baseFieldGroup, defaultLayoutGroup, normalizeOptions } from "../shared";
+import { RadioFieldContent } from "./RadioFieldContent";
 
 export const radioNodeDefinition: ComponentNodeDefinition = {
   key: "radio",
@@ -32,6 +32,7 @@ export const radioNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => <Radio.Group options={normalizeOptions(node.props.options)} />,
-  renderRuntime: (node) => <Radio.Group options={normalizeOptions(node.props.options)} />,
+  renderContent: (node, mode) => (
+    <RadioFieldContent options={normalizeOptions(node.props.options)} interactive={mode === "runtime"} />
+  ),
 };

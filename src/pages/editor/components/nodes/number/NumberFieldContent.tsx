@@ -1,7 +1,5 @@
 import { InputNumber } from "antd";
 import type { ClipboardEvent, KeyboardEvent } from "react";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup } from "./shared";
 
 function isAllowedNumberKey(event: KeyboardEvent<HTMLInputElement>) {
   const allowedKeys = new Set([
@@ -54,44 +52,12 @@ const numberInputProps = {
   onPaste: handleNumberPaste,
 };
 
-export const numberNodeDefinition: ComponentNodeDefinition = {
-  key: "number",
-  title: "数字",
-  createDefaultProps: () => ({
-    component: "number",
-    label: "数字",
-    placeholder: "请输入数字",
-    required: false,
-    helpText: "",
-  }),
-  propertyGroups: [
-    baseFieldGroup,
-    {
-      key: "component",
-      title: "组件",
-      fields: [
-        {
-          key: "placeholder",
-          label: "占位提示",
-          target: "props",
-          control: "input",
-          placeholder: "请输入占位提示",
-        },
-      ],
-    },
-    defaultLayoutGroup,
-  ],
-  renderEditorPreview: (node) => (
-    <InputNumber
-      disabled
-      {...numberInputProps}
-      placeholder={(node.props.placeholder as string | undefined) ?? "请输入数字"}
-    />
-  ),
-  renderRuntime: (node) => (
-    <InputNumber
-      {...numberInputProps}
-      placeholder={(node.props.placeholder as string | undefined) ?? "请输入数字"}
-    />
-  ),
-};
+export function NumberFieldContent({
+  placeholder,
+  interactive,
+}: {
+  placeholder: string;
+  interactive: boolean;
+}) {
+  return <InputNumber {...numberInputProps} disabled={!interactive} placeholder={placeholder} />;
+}

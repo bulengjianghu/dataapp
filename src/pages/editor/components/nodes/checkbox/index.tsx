@@ -1,6 +1,6 @@
-import { Checkbox } from "antd";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup, normalizeOptions } from "./shared";
+import type { ComponentNodeDefinition } from "../types";
+import { baseFieldGroup, defaultLayoutGroup, normalizeOptions } from "../shared";
+import { CheckboxFieldContent } from "./CheckboxFieldContent";
 
 export const checkboxNodeDefinition: ComponentNodeDefinition = {
   key: "checkbox",
@@ -32,6 +32,7 @@ export const checkboxNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => <Checkbox.Group options={normalizeOptions(node.props.options)} />,
-  renderRuntime: (node) => <Checkbox.Group options={normalizeOptions(node.props.options)} />,
+  renderContent: (node, mode) => (
+    <CheckboxFieldContent options={normalizeOptions(node.props.options)} interactive={mode === "runtime"} />
+  ),
 };

@@ -1,8 +1,8 @@
 import { Upload } from "antd";
 import type { UploadFile, UploadProps } from "antd";
 import { useState } from "react";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup } from "./shared";
+import type { ComponentNodeDefinition } from "../types";
+import { baseFieldGroup, defaultLayoutGroup } from "../shared";
 import { UploadFieldContent } from "./UploadFieldContent";
 
 function UploadRuntimeField({ buttonText }: { buttonText: string }) {
@@ -20,11 +20,7 @@ function UploadRuntimeField({ buttonText }: { buttonText: string }) {
       fileList={fileList}
       onChange={handleChange}
     >
-      <UploadFieldContent
-        buttonText={buttonText}
-        interactive
-        fileNames={fileList.map((file) => file.name)}
-      />
+      <UploadFieldContent buttonText={buttonText} interactive fileNames={fileList.map((file) => file.name)} />
     </Upload>
   );
 }
@@ -56,11 +52,13 @@ export const uploadNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => (
-    <UploadFieldContent
-      buttonText={(node.props.buttonText as string | undefined) ?? "点击上传"}
-      interactive={false}
-    />
-  ),
-  renderRuntime: (node) => <UploadRuntimeField buttonText={(node.props.buttonText as string | undefined) ?? "点击上传"} />,
+  renderContent: (node, mode) =>
+    mode === "runtime" ? (
+      <UploadRuntimeField buttonText={(node.props.buttonText as string | undefined) ?? "点击上传"} />
+    ) : (
+      <UploadFieldContent
+        buttonText={(node.props.buttonText as string | undefined) ?? "点击上传"}
+        interactive={false}
+      />
+    ),
 };

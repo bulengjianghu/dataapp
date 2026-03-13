@@ -1,6 +1,6 @@
-import { Select } from "antd";
-import type { ComponentNodeDefinition } from "./types";
-import { baseFieldGroup, defaultLayoutGroup, normalizeOptions } from "./shared";
+import type { ComponentNodeDefinition } from "../types";
+import { baseFieldGroup, defaultLayoutGroup, normalizeOptions } from "../shared";
+import { SelectFieldContent } from "./SelectFieldContent";
 
 export const selectNodeDefinition: ComponentNodeDefinition = {
   key: "select",
@@ -40,17 +40,11 @@ export const selectNodeDefinition: ComponentNodeDefinition = {
     },
     defaultLayoutGroup,
   ],
-  renderEditorPreview: (node) => (
-    <Select
-      disabled
+  renderContent: (node, mode) => (
+    <SelectFieldContent
       options={normalizeOptions(node.props.options)}
       placeholder={(node.props.placeholder as string | undefined) ?? "请选择"}
-    />
-  ),
-  renderRuntime: (node) => (
-    <Select
-      options={normalizeOptions(node.props.options)}
-      placeholder={(node.props.placeholder as string | undefined) ?? "请选择"}
+      interactive={mode === "runtime"}
     />
   ),
 };

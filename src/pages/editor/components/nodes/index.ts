@@ -37,22 +37,6 @@ export const componentDefinitions = Object.fromEntries(
   componentDefinitionsList.map((definition) => [definition.key, definition])
 ) as Record<string, ComponentNodeDefinition>;
 
-export const componentConfigRegistry = Object.fromEntries(
-  componentDefinitionsList.map((definition) => [
-    definition.key,
-    {
-      key: definition.key,
-      title: definition.title,
-      createDefaultProps: definition.createDefaultProps,
-      propertyGroups: definition.propertyGroups,
-    },
-  ])
-);
-
-export const componentRenderRegistry = Object.fromEntries(
-  componentDefinitionsList.map((definition) => [definition.key, definition.renderEditorPreview])
-);
-
 export function getComponentTitle(componentKey: string | undefined): string {
   if (!componentKey) {
     return "未命名组件";
@@ -84,8 +68,14 @@ export function createPaletteNodePreset(componentKey: string) {
 
 export function renderEditorNodePreview(node: Node) {
   const componentKey = node.type === "page" ? "page" : resolveNodeComponentKey(node);
-  const renderer = componentDefinitions[componentKey]?.renderEditorPreview;
-  return renderer ? renderer(node) : null;
+  const renderer = componentDefinitions[componentKey]?.renderContent;
+  return renderer ? renderer(node, "editor") : null;
+}
+
+export function renderRuntimeNodeContent(node: Node) {
+  const componentKey = node.type === "page" ? "page" : resolveNodeComponentKey(node);
+  const renderer = componentDefinitions[componentKey]?.renderContent;
+  return renderer ? renderer(node, "runtime") : null;
 }
 
 export function getPageNodeDefinition() {

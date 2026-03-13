@@ -23,13 +23,14 @@ export type PropertyGroupSchema = {
   fields: PropertyFieldSchema[];
 };
 
+type NodeRenderMode = "editor" | "runtime";
+
 export type ComponentNodeDefinition = {
   key: string;
   title: string;
   createDefaultProps: () => Record<string, unknown>;
   propertyGroups: PropertyGroupSchema[];
-  renderEditorPreview: (node: Node) => ReactNode;
-  renderRuntime: (node: Node) => ReactNode;
+  renderContent: (node: Node, mode: NodeRenderMode) => ReactNode;
   canvasTitle?: string;
   emptyText?: string;
 };

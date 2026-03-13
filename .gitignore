@@ -1,3 +1,4 @@
-node_modules
-dist
+front/node_modules
+front/dist
+front/.vite
 .DS_Store

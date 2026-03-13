@@ -11,10 +11,11 @@ import {
   PictureOutlined,
 } from "@ant-design/icons";
 import type { HTMLAttributes, ReactNode } from "react";
-import { Card, Flex, Typography } from "antd";
+import { Card, Flex, Tabs, Typography } from "antd";
 import { useAppDispatch, useAppSelector } from "../../../../store/hooks";
 import { selectFormId } from "../../../../store/selectors/editorSelectors";
 import { markDirty, setFormId } from "../../../../store/slices/formSchemaSlice";
+import { ComponentOutlineTree } from "./ComponentOutlineTree";
 
 export type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口";
 
@@ -110,30 +111,47 @@ export function ComponentPalette() {
   const formId = useAppSelector(selectFormId);
 
   return (
-    <Card title="组件面板" size="small">
-      <Flex vertical className="editor-palette__groups">
-        {categories.map((category) => {
-          const group = paletteItems.filter((item) => item.category === category);
-          return (
-            <Card key={category} size="small" title={category}>
-              <div className="editor-palette__grid">
-                {group.map((item) => (
-                  <DraggablePaletteItem
-                    key={item.key}
-                    item={item}
-                    onClick={() => {
-                      if (!formId) {
-                        dispatch(setFormId("local-draft"));
-                      }
-                      dispatch(markDirty(true));
-                    }}
-                  />
-                ))}
-              </div>
-            </Card>
-          );
-        })}
-      </Flex>
+    <Card size="small" className="editor-left-panel" bodyStyle={{ padding: 12 }}>
+      <Tabs
+        className="editor-left-panel__tabs"
+        defaultActiveKey="palette"
+        items={[
+          {
+            key: "palette",
+            label: "组件面板",
+            children: (
+              <Flex vertical className="editor-palette__groups">
+                {categories.map((category) => {
+                  const group = paletteItems.filter((item) => item.category === category);
+                  return (
+                    <Card key={category} size="small" title={category}>
+                      <div className="editor-palette__grid">
+                        {group.map((item) => (
+                          <DraggablePaletteItem
+                            key={item.key}
+                            item={item}
+                            onClick={() => {
+                              if (!formId) {
+                                dispatch(setFormId("local-draft"));
+                              }
+                              dispatch(markDirty(true));
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </Flex>
+            ),
+          },
+          {
+            key: "outline",
+            label: "组件大纲",
+            children: <ComponentOutlineTree />,
+          },
+        ]}
+      />
     </Card>
   );
 }

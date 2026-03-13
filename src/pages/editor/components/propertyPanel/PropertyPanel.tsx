@@ -13,7 +13,7 @@ export function PropertyPanel() {
   const schema = selectedNode ? resolveNodePropertySchema(selectedNode) : null;
 
   return (
-    <Card title="属性面板" size="small">
+    <Card title="属性面板" size="small" className="editor-property-panel">
       <div className="editor-property-panel__body">
         {selectedNode && schema ? (
           <Flex vertical gap={16}>

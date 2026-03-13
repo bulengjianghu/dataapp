@@ -1,7 +1,7 @@
 import { Card, Empty, Flex } from "antd";
-import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { selectDirty, selectSelectedNode } from "../../../store/selectors/editorSelectors";
-import { updateNodeLayout, updateNodeProps } from "../../../store/slices/formSchemaSlice";
+import { useAppDispatch, useAppSelector } from "../../../../store/hooks";
+import { selectDirty, selectSelectedNode } from "../../../../store/selectors/editorSelectors";
+import { updateNodeLayout, updateNodeProps } from "../../../../store/slices/formSchemaSlice";
 import { PropertyGroupRenderer } from "./PropertyGroupRenderer";
 import { resolveNodePropertySchema } from "./PropertySchemaResolver";
 

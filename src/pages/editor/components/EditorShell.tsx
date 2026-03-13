@@ -12,10 +12,10 @@ import {
   selectSelectedNodeKey,
 } from "../../../store/selectors/editorSelectors";
 import { PAGE_NODE_ID } from "../../../types/schema/node";
-import { ComponentPalette } from "./ComponentPalette";
-import { EditorDndContextProvider, useEditorDndStatus } from "./EditorDndContext";
-import { FormEditorRenderer } from "./FormEditorRenderer";
-import { PropertyPanel } from "./PropertyPanel";
+import { ComponentPalette } from "./leftPanel/ComponentPalette";
+import { EditorDndContextProvider, useEditorDndStatus } from "./formDesign/editor/EditorDndContext";
+import { FormEditorWrapper } from "./formDesign/editor/FormEditorWrapper";
+import { PropertyPanel } from "./propertyPanel/PropertyPanel";
 import { publishFormLocally, saveDraftLocally, validateBeforePublish } from "../services/formPersistence";
 
 function EditorShellContent() {
@@ -99,7 +99,7 @@ function EditorShellContent() {
           <ComponentPalette />
         </section>
         <section className="editor-shell__panel">
-          <FormEditorRenderer />
+          <FormEditorWrapper />
         </section>
         <section className="editor-shell__panel">
           <PropertyPanel />

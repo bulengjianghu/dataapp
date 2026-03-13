@@ -12,9 +12,9 @@ import {
 } from "@ant-design/icons";
 import type { HTMLAttributes, ReactNode } from "react";
 import { Card, Flex, Typography } from "antd";
-import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { selectFormId } from "../../../store/selectors/editorSelectors";
-import { markDirty, setFormId } from "../../../store/slices/formSchemaSlice";
+import { useAppDispatch, useAppSelector } from "../../../../store/hooks";
+import { selectFormId } from "../../../../store/selectors/editorSelectors";
+import { markDirty, setFormId } from "../../../../store/slices/formSchemaSlice";
 
 export type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口";
 

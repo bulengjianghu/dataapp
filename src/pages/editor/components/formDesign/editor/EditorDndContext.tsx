@@ -15,12 +15,12 @@ import {
 } from "@dnd-kit/core";
 import { Card, Space, Tag, Typography } from "antd";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { PaletteTile, paletteItems } from "./ComponentPalette";
-import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { selectFormId, selectNodesById } from "../../../store/selectors/editorSelectors";
-import { addNode, moveNode, setFormId } from "../../../store/slices/formSchemaSlice";
-import { PAGE_NODE_ID } from "../../../types/schema/node";
-import { createPaletteNodePreset } from "./nodes";
+import { PaletteTile, paletteItems } from "../../leftPanel/ComponentPalette";
+import { useAppDispatch, useAppSelector } from "../../../../../store/hooks";
+import { selectFormId, selectNodesById } from "../../../../../store/selectors/editorSelectors";
+import { addNode, moveNode, setFormId } from "../../../../../store/slices/formSchemaSlice";
+import { PAGE_NODE_ID } from "../../../../../types/schema/node";
+import { createPaletteNodePreset } from "../../nodes";
 import { EditorNodeCard } from "./EditorNodeCard";
 import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
 

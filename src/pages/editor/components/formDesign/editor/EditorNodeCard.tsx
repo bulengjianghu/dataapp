@@ -1,8 +1,8 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { Card, Flex, Tag, Typography } from "antd";
+import { Card, Flex, Typography } from "antd";
 import type { MouseEvent } from "react";
-import type { Node } from "../../../types/schema/node";
-import { renderEditorNodePreview } from "./nodes";
+import type { Node } from "../../../../../types/schema/node";
+import { renderEditorNodePreview } from "../../nodes";
 import { SelectionOutline } from "./SelectionOutline";
 
 function depthClass(depth: number) {
@@ -45,12 +45,11 @@ export function EditorNodeCard({
     event.stopPropagation();
     onSelect(node.id);
   };
-  const deleteMessage = `删除后不可恢复${node.type === "container" ? "，其下子组件也会一并删除" : ""}`;
 
   return (
     <SelectionOutline
       selected={selected}
-      deleteMessage={deleteMessage}
+      deleteMessage="删除后不可恢复"
       onDelete={() => onDelete?.(node.id)}
     >
       <Card
@@ -65,7 +64,6 @@ export function EditorNodeCard({
         className={[
           "editor-node-card",
           depthClass(depth),
-          node.type === "container" ? "is-container" : "",
           isDragging ? "is-dragging" : "",
           !interactive ? "is-overlay" : "",
         ]
@@ -74,13 +72,6 @@ export function EditorNodeCard({
         onClick={interactive ? handleClick : undefined}
       >
         <Flex vertical gap={8} className="editor-node-card__content">
-          {node.type === "container" ? (
-            <Flex align="center" gap={8} wrap>
-              <Tag color="blue" className="editor-node-card__required">
-                容器
-              </Tag>
-            </Flex>
-          ) : null}
           <div className="editor-node-card__preview-wrap">
             {Boolean(node.props.required) ? (
               <span aria-label="必填" className="editor-node-card__required-mark">

@@ -1,16 +1,16 @@
 import { Card, Empty } from "antd";
-import { useAppDispatch, useAppSelector } from "../../../store/hooks";
+import { useAppDispatch, useAppSelector } from "../../../../../store/hooks";
 import {
   selectNodesById,
   selectPageChildrenIds,
   selectPageRootNode,
   selectSelectedNodeKey,
-} from "../../../store/selectors/editorSelectors";
-import { deleteNode, selectNode } from "../../../store/slices/formSchemaSlice";
-import { EditorRootSurface } from "./EditorRootSurface";
-import { getPageNodeDefinition } from "./nodes";
+} from "../../../../../store/selectors/editorSelectors";
+import { deleteNode, selectNode } from "../../../../../store/slices/formSchemaSlice";
+import { getPageNodeDefinition } from "../../nodes";
+import { EditorContainerSurface } from "./EditorContainerSurface";
 
-export function FormEditorRenderer() {
+export function FormEditorWrapper() {
   const dispatch = useAppDispatch();
   const pageRoot = useAppSelector(selectPageRootNode);
   const childrenIds = useAppSelector(selectPageChildrenIds);
@@ -41,13 +41,16 @@ export function FormEditorRenderer() {
       classNames={{ body: "editor-canvas__body" }}
     >
       <div className="editor-canvas__surface">
-        <EditorRootSurface
+        <EditorContainerSurface
+          variant="root"
+          droppableId="drop:form-root"
           containerId={pageRoot.id}
           childIds={childrenIds}
           nodesById={nodesById}
           selected={selectedNodeKey === pageRoot.id}
           selectedNodeKey={selectedNodeKey}
           emptyText={pageDefinition.emptyText ?? "空画布"}
+          depth={0}
           onSelect={(id) => dispatch(selectNode(id))}
           onDelete={(id) => dispatch(deleteNode(id))}
         />

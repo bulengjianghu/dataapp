@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Empty } from "antd";
-import { ContainerLayout } from "./ContainerLayout";
+import { ContainerLayout } from "../shared/ContainerLayout";
 
 export function RuntimeContainerFrame({
   hasChildren,

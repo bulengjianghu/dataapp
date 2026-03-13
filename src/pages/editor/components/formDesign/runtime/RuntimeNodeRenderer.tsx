@@ -1,7 +1,7 @@
 import { Empty, Flex, Typography } from "antd";
-import type { Node, NodesById } from "../../../types/schema/node";
+import type { Node, NodesById } from "../../../../../types/schema/node";
 import { RuntimeContainerFrame } from "./RuntimeContainerFrame";
-import { componentDefinitions, getPageNodeDefinition, renderRuntimeNodeContent } from "./nodes";
+import { componentDefinitions, getPageNodeDefinition, renderRuntimeNodeContent } from "../../nodes";
 
 function RuntimeField({
   node,

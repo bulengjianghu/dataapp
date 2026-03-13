@@ -1,6 +1,6 @@
 import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { Card, Typography } from "antd";
-import type { NodesById } from "../../../types/schema/node";
+import type { NodesById } from "../../../../../types/schema/node";
 import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
 import { EditorNodeCard } from "./EditorNodeCard";
 

@@ -1,10 +1,10 @@
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { Card, Empty, Flex, Tooltip } from "antd";
-import { useAppSelector } from "../../../store/hooks";
-import { selectNodesById, selectPageChildrenIds, selectPageRootNode } from "../../../store/selectors/editorSelectors";
-import { ContainerLayout } from "./ContainerLayout";
+import { useAppSelector } from "../../../../../store/hooks";
+import { selectNodesById, selectPageChildrenIds, selectPageRootNode } from "../../../../../store/selectors/editorSelectors";
+import { ContainerLayout } from "../shared/ContainerLayout";
 import { RuntimeNodeRenderer } from "./RuntimeNodeRenderer";
-import { getPageNodeDefinition } from "./nodes";
+import { getPageNodeDefinition } from "../../nodes";
 
 export function FormPreviewRenderer() {
   const nodesById = useAppSelector(selectNodesById);

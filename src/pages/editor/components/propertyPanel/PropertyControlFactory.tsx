@@ -1,6 +1,6 @@
 import { Input, InputNumber, Select, Switch } from "antd";
-import type { Node } from "../../../types/schema/node";
-import type { PropertyFieldSchema } from "./nodes";
+import type { Node } from "../../../../types/schema/node";
+import type { PropertyFieldSchema } from "../nodes";
 
 function readValue(node: Node, field: PropertyFieldSchema) {
   const source = (field.target === "layout" ? node.layout : node.props) as Record<string, unknown>;

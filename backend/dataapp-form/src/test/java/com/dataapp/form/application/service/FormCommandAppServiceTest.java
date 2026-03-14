@@ -1,11 +1,13 @@
 package com.dataapp.form.application.service;
 
 import com.dataapp.form.domain.model.aggregate.FormDefinition;
+import com.dataapp.form.domain.model.entity.FormDraft;
 import com.dataapp.form.domain.repository.FormDefinitionRepository;
+import com.dataapp.form.interfaces.dto.FormCreateResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -18,20 +20,26 @@ class FormCommandAppServiceTest {
     @Mock
     private FormDefinitionRepository formDefinitionRepository;
 
-    @InjectMocks
-    private FormCommandAppService formCommandAppService;
-
     @Test
     void shouldCreateDraftFormDefinition() {
-        String formId = formCommandAppService.create("巡检表", "inspection_form");
+        FormCommandAppService formCommandAppService = new FormCommandAppService(
+            formDefinitionRepository,
+            new FormSchemaNormalizer(),
+            new ObjectMapper()
+        );
+
+        FormCreateResponse response = formCommandAppService.create("巡检表", "inspection_form");
 
         ArgumentCaptor<FormDefinition> captor = ArgumentCaptor.forClass(FormDefinition.class);
         verify(formDefinitionRepository).save(captor.capture());
         FormDefinition formDefinition = captor.getValue();
 
-        assertThat(formId).isEqualTo(String.valueOf(formDefinition.getId()));
+        verify(formDefinitionRepository).saveDraft(org.mockito.ArgumentMatchers.any(FormDraft.class));
+        assertThat(response.formId()).isEqualTo(formDefinition.getId());
+        assertThat(response.formCode()).isEqualTo("inspection_form");
         assertThat(formDefinition.getName()).isEqualTo("巡检表");
         assertThat(formDefinition.getFormCode()).isEqualTo("inspection_form");
+        assertThat(formDefinition.getDescription()).isEmpty();
         assertThat(formDefinition.getStatus()).isEqualTo("DRAFT");
     }
 }

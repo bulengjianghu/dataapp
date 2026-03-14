@@ -4,6 +4,8 @@ public record FormDetailResponse(
     Long id,
     String formCode,
     String name,
-    String status
+    String description,
+    String status,
+    Long currentVersionId
 ) {
 }

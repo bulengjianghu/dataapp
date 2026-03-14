@@ -14,7 +14,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { Card, Flex, Tabs, Typography } from "antd";
 import { useAppDispatch, useAppSelector } from "../../../../store/hooks";
 import { selectFormId } from "../../../../store/selectors/editorSelectors";
-import { markDirty, setFormId } from "../../../../store/slices/formSchemaSlice";
+import { markDirty } from "../../../../store/slices/formSchemaSlice";
 import { ComponentOutlineTree } from "./ComponentOutlineTree";
 
 export type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口";
@@ -131,9 +131,6 @@ export function ComponentPalette() {
                             key={item.key}
                             item={item}
                             onClick={() => {
-                              if (!formId) {
-                                dispatch(setFormId("local-draft"));
-                              }
                               dispatch(markDirty(true));
                             }}
                           />

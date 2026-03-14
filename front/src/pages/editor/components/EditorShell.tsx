@@ -1,7 +1,7 @@
 import { RedoOutlined, UndoOutlined } from "@ant-design/icons";
 import { Badge, Button, Space, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useBlocker, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import {
   selectDirty,
@@ -9,15 +9,22 @@ import {
   selectNodesById,
   selectHistoryFutureCount,
   selectHistoryPastCount,
+  selectSelectedNodeKey,
 } from "../../../store/selectors/editorSelectors";
 import { redo, undo } from "../../../store/slices/editorHistorySlice";
-import { markDirty, setFormId, setNodesById } from "../../../store/slices/formSchemaSlice";
+import { markDirty, selectNode, setFormId, setNodesById } from "../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID } from "../../../types/schema/node";
 import { ComponentPalette } from "./leftPanel/ComponentPalette";
 import { EditorDndContextProvider } from "./formDesign/editor/EditorDndContext";
 import { FormEditorWrapper } from "./formDesign/editor/FormEditorWrapper";
 import { PropertyPanel } from "./propertyPanel/PropertyPanel";
-import { persistDraftLocally, publishFormLocally, saveDraftLocally, validateBeforePublish } from "../services/formPersistence";
+import {
+  createFormOnServer,
+  loadDraftFromServer,
+  publishFormToServer,
+  saveDraftToServer,
+  validateBeforePublish,
+} from "../services/formPersistence";
 
 const AUTO_SAVE_DELAY = 1500;
 
@@ -63,14 +70,18 @@ function isEditableTarget(target: EventTarget | null) {
 function EditorShellContent() {
   const [messageApi, contextHolder] = message.useMessage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const dirty = useAppSelector(selectDirty);
   const formId = useAppSelector(selectFormId);
   const nodesById = useAppSelector(selectNodesById);
+  const selectedNodeKey = useAppSelector(selectSelectedNodeKey);
   const undoCount = useAppSelector(selectHistoryPastCount);
   const redoCount = useAppSelector(selectHistoryFutureCount);
+  const draftFormId = searchParams.get("formId");
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [initializing, setInitializing] = useState(true);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [autoSavePending, setAutoSavePending] = useState(false);
   const hasSavedDraft = Boolean(formId) || lastSavedAt !== null;
@@ -78,6 +89,7 @@ function EditorShellContent() {
     dirty,
     formId,
     nodesById,
+    selectedNodeKey,
   });
 
   useEffect(() => {
@@ -85,8 +97,9 @@ function EditorShellContent() {
       dirty,
       formId,
       nodesById,
+      selectedNodeKey,
     };
-  }, [dirty, formId, nodesById]);
+  }, [dirty, formId, nodesById, selectedNodeKey]);
 
   const saveSummary = useMemo(() => {
     if (publishing) {
@@ -106,34 +119,41 @@ function EditorShellContent() {
 
   const saveTag = useMemo(() => getSaveTag(dirty, hasSavedDraft), [dirty, hasSavedDraft]);
 
-  const commitSavedState = (result: { formId: string; nodesById: typeof nodesById }) => {
+  const commitSavedState = (
+    result: { formId: string; nodesById: typeof nodesById },
+    options?: { preserveSelection?: boolean }
+  ) => {
     dispatch(setFormId(result.formId));
     dispatch(setNodesById(result.nodesById));
+    const nextSelectedNodeKey =
+      options?.preserveSelection && latestStateRef.current.selectedNodeKey
+        ? result.nodesById[latestStateRef.current.selectedNodeKey]
+          ? latestStateRef.current.selectedNodeKey
+          : PAGE_NODE_ID
+        : PAGE_NODE_ID;
+    dispatch(selectNode(nextSelectedNodeKey));
     dispatch(markDirty(false));
     setLastSavedAt(Date.now());
   };
 
-  const flushDraftSync = () => {
-    const current = latestStateRef.current;
-    const result = persistDraftLocally({
-      formId: current.formId,
-      nodesById: current.nodesById,
-    });
-    commitSavedState(result);
-    return result;
-  };
-
-  const saveDraft = async () => {
-    if (saving || publishing) {
+  const saveDraft = async (options?: { keepalive?: boolean }) => {
+    if (saving || publishing || !formId) {
       return null;
     }
 
     setSaving(true);
 
     try {
-      const result = await saveDraftLocally({ formId, nodesById });
-      commitSavedState(result);
+      const result = await saveDraftToServer({
+        formId,
+        nodesById,
+        keepalive: options?.keepalive,
+      });
+      commitSavedState(result, { preserveSelection: true });
       return result;
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "保存草稿失败");
+      return null;
     } finally {
       setSaving(false);
       setAutoSavePending(false);
@@ -149,17 +169,22 @@ function EditorShellContent() {
 
     setPublishing(true);
     try {
-      const saved = await saveDraftLocally({ formId, nodesById });
-      commitSavedState(saved);
-      await publishFormLocally({ formId: saved.formId, nodesById: saved.nodesById });
-      messageApi.success("表单已发布到本地记录");
+      if (!formId) {
+        throw new Error("表单初始化中，请稍后再试");
+      }
+      const saved = await saveDraftToServer({ formId, nodesById });
+      commitSavedState(saved, { preserveSelection: true });
+      await publishFormToServer({ formId: saved.formId });
+      messageApi.success("表单已发布");
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "发布失败");
     } finally {
       setPublishing(false);
     }
   };
 
   useEffect(() => {
-    if (!dirty || saving || publishing) {
+    if (initializing || !dirty || saving || publishing) {
       setAutoSavePending(false);
       return;
     }
@@ -172,7 +197,7 @@ function EditorShellContent() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [dirty, formId, nodesById, publishing, saving]);
+  }, [dirty, formId, initializing, nodesById, publishing, saving]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -215,11 +240,48 @@ function EditorShellContent() {
   }, [dispatch, redoCount, undoCount]);
 
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== "hidden" || !latestStateRef.current.dirty) {
+    let cancelled = false;
+    setInitializing(true);
+    const initialize = async () => {
+      if (draftFormId) {
+        const result = await loadDraftFromServer(draftFormId);
+        if (!cancelled) {
+          commitSavedState(result);
+        }
         return;
       }
-      flushDraftSync();
+
+      const createdFormId = await createFormOnServer();
+      if (!cancelled) {
+        dispatch(setFormId(createdFormId));
+        setLastSavedAt(Date.now());
+      }
+    };
+
+    void initialize()
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        messageApi.error(error instanceof Error ? error.message : "加载草稿失败");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInitializing(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, draftFormId, messageApi]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "hidden" || !latestStateRef.current.dirty || !latestStateRef.current.formId) {
+        return;
+      }
+      void saveDraft({ keepalive: true });
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -227,41 +289,6 @@ function EditorShellContent() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
-
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!latestStateRef.current.dirty) {
-        return;
-      }
-
-      flushDraftSync();
-      event.preventDefault();
-      event.returnValue = "";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, []);
-
-  const blocker = useBlocker(dirty);
-
-  useEffect(() => {
-    if (blocker.state !== "blocked") {
-      return;
-    }
-
-    const shouldLeave = window.confirm("当前有未保存变更，离开当前页面前将尝试自动保存。是否继续离开？");
-    if (shouldLeave) {
-      if (latestStateRef.current.dirty) {
-        flushDraftSync();
-      }
-      blocker.proceed();
-      return;
-    }
-    blocker.reset();
-  }, [blocker]);
 
   return (
     <div className="editor-shell">
@@ -280,7 +307,9 @@ function EditorShellContent() {
           <Button icon={<RedoOutlined />} disabled={redoCount === 0} onClick={() => dispatch(redo())}>
             重做
           </Button>
-          <Button onClick={() => navigate("/preview")}>预览</Button>
+          <Button disabled={!formId} onClick={() => navigate(formId ? `/preview?formId=${formId}` : "/preview")}>
+            预览
+          </Button>
           <Button type="primary" loading={publishing} onClick={() => void publishForm()}>
             发布
           </Button>

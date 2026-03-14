@@ -5,9 +5,9 @@ import com.dataapp.form.domain.repository.FormDefinitionRepository;
 import com.dataapp.form.interfaces.dto.FormDetailResponse;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,24 +21,24 @@ class FormQueryAppServiceTest {
     @Mock
     private FormDefinitionRepository formDefinitionRepository;
 
-    @InjectMocks
-    private FormQueryAppService formQueryAppService;
-
     @Test
     void shouldReturnFormDetailWhenFormExists() {
+        FormQueryAppService formQueryAppService = new FormQueryAppService(formDefinitionRepository, new ObjectMapper());
         when(formDefinitionRepository.findById(1L))
-            .thenReturn(new FormDefinition(1L, "inspection_form", "巡检表", "DRAFT"));
+            .thenReturn(new FormDefinition(1L, "inspection_form", "巡检表", "巡检说明", "DRAFT", null));
 
         FormDetailResponse response = formQueryAppService.getById(1L);
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.formCode()).isEqualTo("inspection_form");
         assertThat(response.name()).isEqualTo("巡检表");
+        assertThat(response.description()).isEqualTo("巡检说明");
         assertThat(response.status()).isEqualTo("DRAFT");
     }
 
     @Test
     void shouldThrowBizExceptionWhenFormDoesNotExist() {
+        FormQueryAppService formQueryAppService = new FormQueryAppService(formDefinitionRepository, new ObjectMapper());
         when(formDefinitionRepository.findById(2L)).thenReturn(null);
 
         assertThatThrownBy(() -> formQueryAppService.getById(2L))

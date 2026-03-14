@@ -11,6 +11,7 @@ export type Node = {
   props: Record<string, unknown>;
   layout: {
     span?: number;
+    order?: number;
   };
 };
 

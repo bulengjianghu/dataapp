@@ -4,6 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 
 public record FormCreateRequest(
     @NotBlank String name,
-    @NotBlank String formCode
+    String formCode
 ) {
 }

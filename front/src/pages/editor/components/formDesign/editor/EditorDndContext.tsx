@@ -17,8 +17,8 @@ import { Card, Space, Tag, Typography } from "antd";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { PaletteTile, paletteItems } from "../../leftPanel/ComponentPalette";
 import { useAppDispatch, useAppSelector } from "../../../../../store/hooks";
-import { selectFormId, selectNodesById } from "../../../../../store/selectors/editorSelectors";
-import { addNode, moveNode, setFormId } from "../../../../../store/slices/formSchemaSlice";
+import { selectNodesById } from "../../../../../store/selectors/editorSelectors";
+import { addNode, moveNode } from "../../../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID } from "../../../../../types/schema/node";
 import { createPaletteNodePreset } from "../../nodes";
 import { EditorNodeCard } from "./EditorNodeCard";
@@ -99,7 +99,6 @@ function getDroppablePriority(collision: Collision, nodesById: ReturnType<typeof
 
 export function EditorDndContextProvider({ children }: { children: ReactNode }) {
   const dispatch = useAppDispatch();
-  const formId = useAppSelector(selectFormId);
   const nodesById = useAppSelector(selectNodesById);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -184,9 +183,6 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
 
     if (activeData.source === "palette" && typeof activeData.componentKey === "string") {
       setDisableDropAnimation(true);
-      if (!formId) {
-        dispatch(setFormId("local-draft"));
-      }
       const componentKey = activeData.componentKey as string;
       const preset = createPaletteNodePreset(componentKey);
       dispatch(

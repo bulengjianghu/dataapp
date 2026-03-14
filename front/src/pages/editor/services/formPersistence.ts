@@ -1,85 +1,212 @@
-import type { Node, NodesById } from "../../../types/schema/node";
+import { PAGE_NODE_ID, createEmptyNodesById, type Node, type NodesById } from "../../../types/schema/node";
 
-const DRAFT_STORAGE_KEY = "dataapp:drafts";
-const PUBLISH_STORAGE_KEY = "dataapp:publishes";
+type ApiResult<T> = {
+  code: string;
+  message: string;
+  data: T;
+};
 
-type PersistedForm = {
+type CreateFormResponse = {
+  formId: number;
+  formCode: string;
+};
+
+type DraftResponse = {
+  formId: number;
+  formCode: string;
+  name: string;
+  description: string;
+  status: string;
+  draftVersion: number;
+  fields: Record<string, unknown>;
+};
+
+type PublishResponse = {
+  formId: number;
+  formCode: string;
+  name: string;
+  description: string;
+  versionId: number;
+  versionNo: number;
+  status: string;
+  fields: Record<string, unknown>;
+};
+
+type PersistedDraft = {
   formId: string;
-  publishedAt?: string;
   nodesById: NodesById;
 };
 
-function readStorage(key: string): Record<string, PersistedForm> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const raw = window.localStorage.getItem(key);
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(raw) as Record<string, PersistedForm>;
-  } catch {
-    return {};
-  }
+function getPageMeta(nodesById: NodesById) {
+  const pageRoot = nodesById[PAGE_NODE_ID];
+  const rawTitle = typeof pageRoot?.props.title === "string" ? pageRoot.props.title.trim() : "";
+  return {
+    name: rawTitle || "未命名表单",
+    description: typeof pageRoot?.props.description === "string" ? pageRoot.props.description : "",
+  };
 }
 
-function writeStorage(key: string, value: Record<string, PersistedForm>) {
-  if (typeof window === "undefined") {
-    return;
+function buildTraversalOrder(nodesById: NodesById) {
+  const visited = new Set<string>();
+  const order: string[] = [];
+
+  const visit = (nodeId: string) => {
+    if (nodeId === PAGE_NODE_ID || visited.has(nodeId)) {
+      return;
+    }
+    const node = nodesById[nodeId];
+    if (!node) {
+      return;
+    }
+    visited.add(nodeId);
+    order.push(nodeId);
+    node.childrenIds.forEach(visit);
+  };
+
+  nodesById[PAGE_NODE_ID]?.childrenIds.forEach(visit);
+  Object.keys(nodesById).forEach(visit);
+  return order;
+}
+
+function getSiblingOrders(nodesById: NodesById) {
+  const orders = new Map<string, number>();
+
+  Object.values(nodesById).forEach((node) => {
+    node.childrenIds.forEach((childId, index) => {
+      orders.set(childId, index);
+    });
+  });
+
+  return orders;
+}
+
+function serializeDraft(nodesById: NodesById) {
+  const siblingOrders = getSiblingOrders(nodesById);
+  const fields: Record<string, Node> = {};
+
+  buildTraversalOrder(nodesById).forEach((nodeId) => {
+    const node = nodesById[nodeId];
+    if (!node || node.id === PAGE_NODE_ID) {
+      return;
+    }
+
+    fields[node.id] = {
+      ...node,
+      parentId: node.parentId === PAGE_NODE_ID ? null : node.parentId,
+      childrenIds: [...node.childrenIds],
+      layout: {
+        ...node.layout,
+        order: siblingOrders.get(node.id) ?? node.layout.order,
+      },
+    };
+  });
+
+  return fields;
+}
+
+function sortByOrder(a: Node, b: Node) {
+  const aOrder = typeof a.layout.order === "number" ? a.layout.order : Number.MAX_SAFE_INTEGER;
+  const bOrder = typeof b.layout.order === "number" ? b.layout.order : Number.MAX_SAFE_INTEGER;
+  if (aOrder !== bOrder) {
+    return aOrder - bOrder;
   }
-  window.localStorage.setItem(key, JSON.stringify(value));
+  return a.id.localeCompare(b.id);
 }
 
-function ensureServerIds(nodesById: NodesById): NodesById {
-  return Object.fromEntries(
-    Object.entries(nodesById).map(([nodeId, node]) => [
-      nodeId,
-      {
-        ...node,
-        serverId: node.serverId ?? `srv_${nodeId}_${Math.random().toString(36).slice(2, 8)}`,
-      } satisfies Node,
-    ])
-  );
-}
+function deserializeDraft(response: DraftResponse | PublishResponse): PersistedDraft {
+  const nodesById = createEmptyNodesById();
+  nodesById[PAGE_NODE_ID].props = {
+    title: response.name,
+    description: response.description,
+  };
 
-export async function saveDraftLocally({
-  formId,
-  nodesById,
-}: {
-  formId: string | null;
-  nodesById: NodesById;
-}) {
-  return persistDraftLocally({
-    formId,
+  Object.entries(response.fields ?? {}).forEach(([nodeId, rawNode]) => {
+    const node = rawNode as Node;
+    nodesById[nodeId] = {
+      ...node,
+      parentId: node.parentId ?? PAGE_NODE_ID,
+      childrenIds: Array.isArray(node.childrenIds) ? [...node.childrenIds] : [],
+      props: { ...(node.props ?? {}) },
+      layout: { ...(node.layout ?? {}) },
+    };
+  });
+
+  nodesById[PAGE_NODE_ID].childrenIds = Object.values(nodesById)
+    .filter((node) => node.id !== PAGE_NODE_ID && node.parentId === PAGE_NODE_ID)
+    .sort(sortByOrder)
+    .map((node) => node.id);
+
+  return {
+    formId: String(response.formId),
     nodesById,
+  };
+}
+
+async function request<T>(input: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    ...init,
+  });
+
+  const payload = (await response.json()) as ApiResult<T>;
+  if (!response.ok || payload.code !== "SUCCESS") {
+    throw new Error(payload.message || "请求失败");
+  }
+  return payload.data;
+}
+
+async function createForm(name: string) {
+  return request<CreateFormResponse>("/api/admin/forms", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+    }),
   });
 }
 
-export function persistDraftLocally({
+export async function createFormOnServer(name = "未命名表单"): Promise<string> {
+  const created = await createForm(name);
+  return String(created.formId);
+}
+
+export async function loadDraftFromServer(formId: string) {
+  const draft = await request<DraftResponse>(`/api/admin/forms/${formId}/draft`);
+  return deserializeDraft(draft);
+}
+
+export async function saveDraftToServer({
   formId,
   nodesById,
+  keepalive,
 }: {
-  formId: string | null;
+  formId: string;
   nodesById: NodesById;
+  keepalive?: boolean;
 }) {
-  const nextFormId = formId ?? `draft_${Date.now()}`;
-  const nextNodesById = ensureServerIds(nodesById);
-  const drafts = readStorage(DRAFT_STORAGE_KEY);
+  const pageMeta = getPageMeta(nodesById);
+  const fields = serializeDraft(nodesById);
 
-  drafts[nextFormId] = {
-    formId: nextFormId,
-    nodesById: nextNodesById,
-  };
+  const saved = await request<DraftResponse>(`/api/admin/forms/${formId}/draft`, {
+    method: "PUT",
+    body: JSON.stringify({
+      name: pageMeta.name,
+      description: pageMeta.description,
+      fields,
+    }),
+    keepalive,
+  });
 
-  writeStorage(DRAFT_STORAGE_KEY, drafts);
+  return deserializeDraft(saved);
+}
 
-  return {
-    formId: nextFormId,
-    nodesById: nextNodesById,
-  };
+export async function publishFormToServer({ formId }: { formId: string }) {
+  const published = await request<PublishResponse>(`/api/admin/forms/${formId}/publish`, {
+    method: "POST",
+  });
+  return deserializeDraft(published);
 }
 
 export function validateBeforePublish(nodesById: NodesById, pageRootId: string) {
@@ -109,24 +236,4 @@ export function validateBeforePublish(nodesById: NodesById, pageRootId: string) 
   });
 
   return errors;
-}
-
-export async function publishFormLocally({
-  formId,
-  nodesById,
-}: {
-  formId: string;
-  nodesById: NodesById;
-}) {
-  const publishes = readStorage(PUBLISH_STORAGE_KEY);
-
-  publishes[formId] = {
-    formId,
-    nodesById,
-    publishedAt: new Date().toISOString(),
-  };
-
-  writeStorage(PUBLISH_STORAGE_KEY, publishes);
-
-  return publishes[formId];
 }

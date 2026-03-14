@@ -9,6 +9,13 @@ public final class FormDefinitionConverter {
     }
 
     public static FormDefinition toDomain(FormDefinitionPO po) {
-        return po == null ? null : new FormDefinition(po.getId(), po.getFormCode(), po.getName(), po.getStatus());
+        return po == null ? null : new FormDefinition(
+            po.getId(),
+            po.getFormCode(),
+            po.getName(),
+            po.getDescription(),
+            po.getStatus(),
+            po.getCurrentVersionId()
+        );
     }
 }

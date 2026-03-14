@@ -22,7 +22,13 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/login", "/api/users/ping", "/api/files/ping").permitAll()
+                .requestMatchers(
+                    "/api/auth/login",
+                    "/api/users/ping",
+                    "/api/files/ping",
+                    "/api/admin/forms/**",
+                    "/api/runtime/forms/**"
+                ).permitAll()
                 .anyRequest().authenticated()
             );
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

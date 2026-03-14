@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dataapp_test
+    username: postgres
+    password: postgres
+  flyway:
+    clean-disabled: false
+
+logging:
+  level:
+    root: WARN
+    com.dataapp: INFO

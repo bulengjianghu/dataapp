@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dataapp
+    username: postgres
+    password: postgres
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+logging:
+  level:
+    root: INFO
+    com.dataapp: DEBUG

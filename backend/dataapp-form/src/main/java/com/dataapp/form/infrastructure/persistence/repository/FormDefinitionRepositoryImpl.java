@@ -46,6 +46,11 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
     }
 
     @Override
+    public List<com.dataapp.form.infrastructure.persistence.po.FormDraftSummaryPO> listDrafts() {
+        return formDefinitionMapper.selectDraftSummaries();
+    }
+
+    @Override
     public FormVersion findCurrentVersionByFormCode(String formCode) {
         var po = formDefinitionMapper.selectCurrentVersionByFormCode(formCode);
         return po == null ? null : new FormVersion(
@@ -110,6 +115,15 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
     @Override
     public void updateCurrentVersion(Long formId, Long versionId, String status) {
         formDefinitionMapper.updateCurrentVersion(formId, versionId, status);
+    }
+
+    @Override
+    public void deleteById(Long formId) {
+        formDefinitionMapper.deleteVersionFieldsByFormId(formId);
+        formDefinitionMapper.deleteDraftFieldsByFormId(formId);
+        formDefinitionMapper.deleteVersionsByFormId(formId);
+        formDefinitionMapper.deleteDraftByFormId(formId);
+        formDefinitionMapper.deleteByFormId(formId);
     }
 
     @Override

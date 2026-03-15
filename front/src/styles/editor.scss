@@ -6,18 +6,25 @@
 }
 
 .editor-shell__toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 12px;
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.editor-shell__toolbar-title {
+  min-width: 0;
 }
 
 .editor-shell__toolbar-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 0 0 auto;
+  justify-content: flex-end;
 }
 
 .editor-shell__content {
@@ -51,6 +58,9 @@
 .editor-property-panel .ant-card-head {
   min-height: 40px;
   padding: 0 12px;
+  border-bottom: 1px solid #f0f0f0;
+  flex: 0 0 auto;
+  background: #fff;
 }
 
 .editor-canvas .ant-card-head-title,
@@ -102,10 +112,23 @@
 }
 
 .editor-canvas__body {
-  height: calc(100% - 38px);
+  flex: 1;
   padding: 0 !important;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.editor-canvas__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 40px;
+  width: 100%;
+  padding: 0 12px;
+  background: #fff;
+  box-sizing: border-box;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .editor-canvas__surface {
@@ -416,6 +439,65 @@
   min-height: 0;
   height: 100%;
   overflow: auto;
+}
+
+.form-list-page {
+  min-height: 100vh;
+  padding: 32px;
+  background:
+    radial-gradient(circle at top left, rgba(22, 119, 255, 0.08), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);
+}
+
+.form-list-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.form-list-page__header .ant-typography {
+  margin-bottom: 0;
+}
+
+.form-list-page__table {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.form-list-page__table .ant-table-wrapper {
+  padding: 8px;
+}
+
+@media (max-width: 960px) {
+  .form-list-page {
+    padding: 16px;
+  }
+
+  .form-list-page__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .editor-shell__content {
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(280px, auto);
+  }
+
+  .editor-shell__toolbar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px 16px;
+  }
+
+  .editor-shell__toolbar-title {
+    width: 100%;
+  }
+
 }
 
 .editor-property-panel__meta {

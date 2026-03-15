@@ -4,6 +4,7 @@ import com.dataapp.form.application.service.FormCommandAppService;
 import com.dataapp.form.application.service.FormQueryAppService;
 import com.dataapp.form.interfaces.dto.FormCreateRequest;
 import com.dataapp.form.interfaces.dto.FormCreateResponse;
+import com.dataapp.form.interfaces.dto.FormDraftListItemResponse;
 import com.dataapp.form.interfaces.dto.FormDraftResponse;
 import com.dataapp.form.interfaces.dto.FormDetailResponse;
 import com.dataapp.form.interfaces.dto.FormPublishResponse;
@@ -17,6 +18,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/forms")
@@ -36,6 +40,11 @@ public class AdminFormController {
     @PostMapping
     public Result<FormCreateResponse> create(@Valid @RequestBody FormCreateRequest request) {
         return Result.success(formCommandAppService.create(request.name(), request.formCode()));
+    }
+
+    @GetMapping
+    public Result<List<FormDraftListItemResponse>> listDrafts() {
+        return Result.success(formQueryAppService.listDrafts());
     }
 
     @GetMapping("/{formId}")
@@ -59,5 +68,11 @@ public class AdminFormController {
     @PostMapping("/{formId}/publish")
     public Result<FormPublishResponse> publish(@PathVariable("formId") Long formId) {
         return Result.success(formCommandAppService.publish(formId));
+    }
+
+    @DeleteMapping("/{formId}")
+    public Result<Void> delete(@PathVariable("formId") Long formId) {
+        formCommandAppService.delete(formId);
+        return Result.success(null);
     }
 }

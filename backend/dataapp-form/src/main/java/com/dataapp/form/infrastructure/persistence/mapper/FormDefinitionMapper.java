@@ -2,6 +2,7 @@ package com.dataapp.form.infrastructure.persistence.mapper;
 
 import com.dataapp.form.infrastructure.persistence.po.FormDefinitionPO;
 import com.dataapp.form.infrastructure.persistence.po.FormDraftPO;
+import com.dataapp.form.infrastructure.persistence.po.FormDraftSummaryPO;
 import com.dataapp.form.infrastructure.persistence.po.FormVersionPO;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
@@ -9,6 +10,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
 
 @Mapper
 public interface FormDefinitionMapper {
@@ -57,6 +60,20 @@ public interface FormDefinitionMapper {
         """)
     FormDraftPO selectDraftByFormId(Long formId);
 
+    @Select("""
+        select fd.id as form_id,
+               fd.form_code,
+               fd.name,
+               fd.description,
+               fd.status,
+               d.version as draft_version,
+               d.updated_at
+        from form_definition fd
+        inner join form_draft d on d.form_id = fd.id
+        order by d.updated_at desc, fd.id desc
+        """)
+    List<FormDraftSummaryPO> selectDraftSummaries();
+
     @Insert("""
         insert into form_draft (id, tenant_id, form_id, schema_json, fields_json, version, updated_by)
         values (#{id}, 0, #{formId}, cast(#{fieldsJson} as jsonb), cast(#{fieldsJson} as jsonb), #{version}, #{updatedBy})
@@ -88,6 +105,18 @@ public interface FormDefinitionMapper {
 
     @Delete("delete from form_field where form_id = #{formId}")
     int deleteDraftFieldsByFormId(Long formId);
+
+    @Delete("delete from form_version_field where form_id = #{formId}")
+    int deleteVersionFieldsByFormId(Long formId);
+
+    @Delete("delete from form_version where form_id = #{formId}")
+    int deleteVersionsByFormId(Long formId);
+
+    @Delete("delete from form_draft where form_id = #{formId}")
+    int deleteDraftByFormId(Long formId);
+
+    @Delete("delete from form_definition where id = #{formId}")
+    int deleteByFormId(Long formId);
 
     @Insert("""
         insert into form_field (

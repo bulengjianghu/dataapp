@@ -5,6 +5,7 @@ import com.dataapp.form.domain.model.entity.FormDraft;
 import com.dataapp.form.domain.model.entity.FormVersion;
 import com.dataapp.form.domain.repository.FormDefinitionRepository;
 import com.dataapp.form.interfaces.dto.FormDraftResponse;
+import com.dataapp.form.interfaces.dto.FormDraftListItemResponse;
 import com.dataapp.form.interfaces.dto.FormDetailResponse;
 import com.dataapp.form.interfaces.dto.FormRuntimeResponse;
 import com.dataapp.shared.exception.BizException;
@@ -15,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -61,6 +63,20 @@ public class FormQueryAppService {
             draft.version(),
             readFields(draft.fieldsJson())
         );
+    }
+
+    public List<FormDraftListItemResponse> listDrafts() {
+        return formDefinitionRepository.listDrafts().stream()
+            .map(item -> new FormDraftListItemResponse(
+                item.getFormId(),
+                item.getFormCode(),
+                item.getName(),
+                item.getDescription(),
+                item.getStatus(),
+                item.getDraftVersion(),
+                item.getUpdatedAt()
+            ))
+            .toList();
     }
 
     public FormRuntimeResponse getPublishedByFormCode(String formCode) {

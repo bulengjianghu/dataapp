@@ -1,4 +1,4 @@
-import { RedoOutlined, UndoOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Badge, Button, Space, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -12,7 +12,7 @@ import {
   selectSelectedNodeKey,
 } from "../../../store/selectors/editorSelectors";
 import { redo, undo } from "../../../store/slices/editorHistorySlice";
-import { markDirty, selectNode, setFormId, setNodesById } from "../../../store/slices/formSchemaSlice";
+import { markDirty, resetSchemaState, selectNode, setFormId, setNodesById } from "../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID } from "../../../types/schema/node";
 import { ComponentPalette } from "./leftPanel/ComponentPalette";
 import { EditorDndContextProvider } from "./formDesign/editor/EditorDndContext";
@@ -118,6 +118,10 @@ function EditorShellContent() {
   }, [autoSavePending, dirty, hasSavedDraft, lastSavedAt, publishing, saving]);
 
   const saveTag = useMemo(() => getSaveTag(dirty, hasSavedDraft), [dirty, hasSavedDraft]);
+  const formTitle = useMemo(() => {
+    const rawTitle = nodesById[PAGE_NODE_ID]?.props?.title;
+    return typeof rawTitle === "string" && rawTitle.trim() ? rawTitle.trim() : "未命名表单";
+  }, [nodesById]);
 
   const commitSavedState = (
     result: { formId: string; nodesById: typeof nodesById },
@@ -243,6 +247,8 @@ function EditorShellContent() {
     let cancelled = false;
     setInitializing(true);
     const initialize = async () => {
+      dispatch(resetSchemaState());
+
       if (draftFormId) {
         const result = await loadDraftFromServer(draftFormId);
         if (!cancelled) {
@@ -254,6 +260,7 @@ function EditorShellContent() {
       const createdFormId = await createFormOnServer();
       if (!cancelled) {
         dispatch(setFormId(createdFormId));
+        dispatch(selectNode(PAGE_NODE_ID));
         setLastSavedAt(Date.now());
       }
     };
@@ -294,19 +301,16 @@ function EditorShellContent() {
     <div className="editor-shell">
       {contextHolder}
       <header className="editor-shell__toolbar">
-        <Space wrap>
-          <strong>单表单编辑器</strong>
-          <Tag color={saveTag.color}>{saveTag.label}</Tag>
-          <Typography.Text type="secondary">{saveSummary}</Typography.Text>
-        </Space>
+        <div className="editor-shell__toolbar-title">
+          <Space wrap>
+            <Button aria-label="返回列表" icon={<ArrowLeftOutlined />} onClick={() => navigate("/")} />
+            <strong>{formTitle}</strong>
+          </Space>
+        </div>
         <div className="editor-shell__toolbar-actions">
           <Badge status={dirty ? "processing" : "success"} />
-          <Button icon={<UndoOutlined />} disabled={undoCount === 0} onClick={() => dispatch(undo())}>
-            撤销
-          </Button>
-          <Button icon={<RedoOutlined />} disabled={redoCount === 0} onClick={() => dispatch(redo())}>
-            重做
-          </Button>
+          <Typography.Text type="secondary">{saveSummary}</Typography.Text>
+          <Tag color={saveTag.color}>{saveTag.label}</Tag>
           <Button disabled={!formId} onClick={() => navigate(formId ? `/preview?formId=${formId}` : "/preview")}>
             预览
           </Button>
@@ -321,7 +325,12 @@ function EditorShellContent() {
           <ComponentPalette />
         </section>
         <section className="editor-shell__panel">
-          <FormEditorWrapper />
+          <FormEditorWrapper
+            undoDisabled={undoCount === 0}
+            redoDisabled={redoCount === 0}
+            onUndo={() => dispatch(undo())}
+            onRedo={() => dispatch(redo())}
+          />
         </section>
         <section className="editor-shell__panel">
           <PropertyPanel />

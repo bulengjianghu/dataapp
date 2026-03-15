@@ -137,6 +137,12 @@ public class FormCommandAppService {
         );
     }
 
+    @Transactional
+    public void delete(Long formId) {
+        requireForm(formId);
+        formDefinitionRepository.deleteById(formId);
+    }
+
     private FormDefinition requireForm(Long formId) {
         FormDefinition formDefinition = formDefinitionRepository.findById(formId);
         if (formDefinition == null) {

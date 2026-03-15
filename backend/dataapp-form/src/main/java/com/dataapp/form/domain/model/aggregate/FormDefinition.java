@@ -2,6 +2,10 @@ package com.dataapp.form.domain.model.aggregate;
 
 import com.dataapp.form.domain.model.entity.FormDraft;
 import com.dataapp.form.domain.model.entity.FormVersion;
+import com.dataapp.form.domain.model.event.FormCreatedEvent;
+import com.dataapp.form.domain.model.event.FormDeletedEvent;
+import com.dataapp.form.domain.model.event.FormDraftSavedEvent;
+import com.dataapp.form.domain.model.event.FormPublishedEvent;
 import com.dataapp.form.domain.model.valueobject.FormMeta;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
@@ -58,7 +62,9 @@ public class FormDefinition extends AggregateRoot<Long> {
 
     public static FormDefinition create(Long id, String formCode, FormMeta meta) {
         String resolvedFormCode = formCode == null || formCode.isBlank() ? "form_" + id : formCode.trim();
-        return new FormDefinition(id, resolvedFormCode, meta.name(), meta.description(), STATUS_DRAFT, null);
+        FormDefinition definition = new FormDefinition(id, resolvedFormCode, meta.name(), meta.description(), STATUS_DRAFT, null);
+        definition.registerEvent(new FormCreatedEvent(id, resolvedFormCode));
+        return definition;
     }
 
     public FormDefinition saveDraft(FormMeta meta) {
@@ -78,6 +84,7 @@ public class FormDefinition extends AggregateRoot<Long> {
         FormDraft nextDraft = currentDraft == null
             ? new FormDraft(draftId, id, fieldsJson, 1, operatorId, now)
             : currentDraft.save(fieldsJson, operatorId, now);
+        updatedDefinition.registerEvent(new FormDraftSavedEvent(id, nextDraft.getVersion()));
         return new DraftSaveResult(updatedDefinition, nextDraft);
     }
 
@@ -103,7 +110,14 @@ public class FormDefinition extends AggregateRoot<Long> {
             STATUS_ACTIVE,
             versionId
         );
+        activatedDefinition.registerEvent(new FormPublishedEvent(id, versionId, versionNo));
         return new PublishResult(activatedDefinition, normalizedDraft, version);
+    }
+
+    public FormDefinition delete() {
+        FormDefinition deletedDefinition = new FormDefinition(id, formCode, name, description, STATUS_DELETED, currentVersionId);
+        deletedDefinition.registerEvent(new FormDeletedEvent(id));
+        return deletedDefinition;
     }
 
     private void assertNotDeleted() {

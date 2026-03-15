@@ -10,6 +10,7 @@ import com.dataapp.form.interfaces.dto.FormPublishResponse;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,12 +28,15 @@ class FormCommandAppServiceTest {
 
     @Mock
     private FormDefinitionRepository formDefinitionRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @Test
     void shouldCreateDraftFormDefinition() {
         FormCommandAppService formCommandAppService = new FormCommandAppService(
             formDefinitionRepository,
-            new ObjectMapper()
+            new ObjectMapper(),
+            eventPublisher
         );
 
         FormCreateResponse response = formCommandAppService.create("巡检表", "inspection_form");
@@ -42,6 +46,7 @@ class FormCommandAppServiceTest {
         FormDefinition formDefinition = captor.getValue();
 
         verify(formDefinitionRepository).saveDraft(org.mockito.ArgumentMatchers.any(FormDraft.class));
+        verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
         assertThat(response.formId()).isEqualTo(formDefinition.getId());
         assertThat(response.formCode()).isEqualTo("inspection_form");
         assertThat(formDefinition.getName()).isEqualTo("巡检表");
@@ -54,7 +59,8 @@ class FormCommandAppServiceTest {
     void shouldSaveDraftThroughDomainBehavior() {
         FormCommandAppService formCommandAppService = new FormCommandAppService(
             formDefinitionRepository,
-            new ObjectMapper()
+            new ObjectMapper(),
+            eventPublisher
         );
         when(formDefinitionRepository.findById(1L))
             .thenReturn(new FormDefinition(1L, "inspection_form", "巡检表", "", "DRAFT", null));
@@ -78,8 +84,8 @@ class FormCommandAppServiceTest {
         );
 
         verify(formDefinitionRepository).update(any(FormDefinition.class));
-        verify(formDefinitionRepository).saveDraft(any(FormDraft.class));
-        verify(formDefinitionRepository).replaceDraftFields(any(Long.class), any());
+        verify(formDefinitionRepository).saveDraftSnapshot(any());
+        verify(eventPublisher).publishEvent(any(Object.class));
         assertThat(response.name()).isEqualTo("巡检表V2");
         assertThat(response.description()).isEqualTo("说明");
         assertThat(response.draftVersion()).isEqualTo(3);
@@ -90,7 +96,8 @@ class FormCommandAppServiceTest {
     void shouldPublishCurrentDraft() {
         FormCommandAppService formCommandAppService = new FormCommandAppService(
             formDefinitionRepository,
-            new ObjectMapper()
+            new ObjectMapper(),
+            eventPublisher
         );
         when(formDefinitionRepository.findById(1L))
             .thenReturn(new FormDefinition(1L, "inspection_form", "巡检表", "说明", "DRAFT", null));
@@ -107,10 +114,8 @@ class FormCommandAppServiceTest {
 
         FormPublishResponse response = formCommandAppService.publish(1L);
 
-        verify(formDefinitionRepository).saveDraft(any(FormDraft.class));
-        verify(formDefinitionRepository).saveVersion(any(FormVersion.class));
-        verify(formDefinitionRepository).replaceVersionFields(any(Long.class), any(Long.class), any());
-        verify(formDefinitionRepository).updateCurrentVersion(any(Long.class), any(Long.class), any(String.class));
+        verify(formDefinitionRepository).savePublishedSnapshot(any());
+        verify(eventPublisher).publishEvent(any(Object.class));
         assertThat(response.formCode()).isEqualTo("inspection_form");
         assertThat(response.status()).isEqualTo("ACTIVE");
         assertThat(response.versionNo()).isEqualTo(3);
@@ -120,7 +125,8 @@ class FormCommandAppServiceTest {
     void shouldThrowWhenPublishingWithoutDraft() {
         FormCommandAppService formCommandAppService = new FormCommandAppService(
             formDefinitionRepository,
-            new ObjectMapper()
+            new ObjectMapper(),
+            eventPublisher
         );
         when(formDefinitionRepository.findById(1L))
             .thenReturn(new FormDefinition(1L, "inspection_form", "巡检表", "说明", "DRAFT", null));

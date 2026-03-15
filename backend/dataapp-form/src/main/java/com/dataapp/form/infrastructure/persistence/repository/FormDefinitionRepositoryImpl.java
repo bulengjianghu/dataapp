@@ -5,6 +5,8 @@ import com.dataapp.form.domain.model.entity.FormDraft;
 import com.dataapp.form.domain.model.entity.FormFieldIndex;
 import com.dataapp.form.domain.model.entity.FormVersion;
 import com.dataapp.form.domain.repository.FormDefinitionRepository;
+import com.dataapp.form.domain.repository.FormDraftPersistence;
+import com.dataapp.form.domain.repository.FormPublishPersistence;
 import com.dataapp.form.infrastructure.persistence.converter.FormDefinitionConverter;
 import com.dataapp.form.infrastructure.persistence.mapper.FormDefinitionMapper;
 import com.dataapp.form.infrastructure.persistence.po.FormDefinitionPO;
@@ -97,6 +99,12 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
     }
 
     @Override
+    public void saveDraftSnapshot(FormDraftPersistence draftPersistence) {
+        saveDraft(draftPersistence.draft());
+        replaceDraftFields(draftPersistence.draft().getFormId(), draftPersistence.fieldIndexes());
+    }
+
+    @Override
     public int nextVersionNo(Long formId) {
         return formDefinitionMapper.selectMaxVersionNo(formId) + 1;
     }
@@ -115,6 +123,23 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
     @Override
     public void updateCurrentVersion(Long formId, Long versionId, String status) {
         formDefinitionMapper.updateCurrentVersion(formId, versionId, status);
+    }
+
+    @Override
+    public void savePublishedSnapshot(FormPublishPersistence publishPersistence) {
+        saveDraft(publishPersistence.draft());
+        replaceDraftFields(publishPersistence.formDefinition().getId(), publishPersistence.fieldIndexes());
+        saveVersion(publishPersistence.version());
+        replaceVersionFields(
+            publishPersistence.version().getId(),
+            publishPersistence.formDefinition().getId(),
+            publishPersistence.fieldIndexes()
+        );
+        updateCurrentVersion(
+            publishPersistence.formDefinition().getId(),
+            publishPersistence.version().getId(),
+            publishPersistence.formDefinition().getStatus()
+        );
     }
 
     @Override

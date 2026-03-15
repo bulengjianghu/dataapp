@@ -26,11 +26,15 @@ public interface FormDefinitionRepository {
 
     void saveDraft(FormDraft formDraft);
 
+    void saveDraftSnapshot(FormDraftPersistence draftPersistence);
+
     int nextVersionNo(Long formId);
 
     void saveVersion(FormVersion formVersion);
 
     void updateCurrentVersion(Long formId, Long versionId, String status);
+
+    void savePublishedSnapshot(FormPublishPersistence publishPersistence);
 
     void deleteById(Long formId);
 

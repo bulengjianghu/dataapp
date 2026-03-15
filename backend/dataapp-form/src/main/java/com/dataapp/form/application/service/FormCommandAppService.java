@@ -3,6 +3,8 @@ package com.dataapp.form.application.service;
 import com.dataapp.form.domain.model.aggregate.FormDefinition;
 import com.dataapp.form.domain.model.entity.FormDraft;
 import com.dataapp.form.domain.repository.FormDefinitionRepository;
+import com.dataapp.form.domain.repository.FormDraftPersistence;
+import com.dataapp.form.domain.repository.FormPublishPersistence;
 import com.dataapp.form.domain.model.valueobject.FormMeta;
 import com.dataapp.form.domain.model.valueobject.FormSchema;
 import com.dataapp.form.interfaces.dto.FormCreateResponse;
@@ -16,6 +18,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -26,13 +29,16 @@ public class FormCommandAppService {
 
     private final FormDefinitionRepository formDefinitionRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FormCommandAppService(
         FormDefinitionRepository formDefinitionRepository,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        ApplicationEventPublisher eventPublisher
     ) {
         this.formDefinitionRepository = formDefinitionRepository;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -41,6 +47,7 @@ public class FormCommandAppService {
         FormDefinition definition = FormDefinition.create(formId, formCode, new FormMeta(name, ""));
         formDefinitionRepository.save(definition);
         formDefinitionRepository.saveDraft(FormDraft.initialize(IdGenerator.nextId(), formId, 1L, OffsetDateTime.now()));
+        publishDomainEvents(definition);
         return new FormCreateResponse(formId, definition.getFormCode());
     }
 
@@ -61,8 +68,8 @@ public class FormCommandAppService {
         );
 
         formDefinitionRepository.update(result.formDefinition());
-        formDefinitionRepository.saveDraft(result.draft());
-        formDefinitionRepository.replaceDraftFields(formId, schema.fieldIndexes());
+        formDefinitionRepository.saveDraftSnapshot(new FormDraftPersistence(result.draft(), schema.fieldIndexes()));
+        publishDomainEvents(result.formDefinition());
 
         return new FormDraftResponse(
             formId,
@@ -97,11 +104,13 @@ public class FormCommandAppService {
             OffsetDateTime.now()
         );
 
-        formDefinitionRepository.saveDraft(result.draft());
-        formDefinitionRepository.replaceDraftFields(formId, schema.fieldIndexes());
-        formDefinitionRepository.saveVersion(result.version());
-        formDefinitionRepository.replaceVersionFields(versionId, formId, schema.fieldIndexes());
-        formDefinitionRepository.updateCurrentVersion(formId, versionId, result.formDefinition().getStatus());
+        formDefinitionRepository.savePublishedSnapshot(new FormPublishPersistence(
+            result.formDefinition(),
+            result.draft(),
+            result.version(),
+            schema.fieldIndexes()
+        ));
+        publishDomainEvents(result.formDefinition());
 
         return new FormPublishResponse(
             formId,
@@ -117,8 +126,9 @@ public class FormCommandAppService {
 
     @Transactional
     public void delete(Long formId) {
-        requireForm(formId);
+        FormDefinition formDefinition = requireForm(formId).delete();
         formDefinitionRepository.deleteById(formId);
+        publishDomainEvents(formDefinition);
     }
 
     private FormDefinition requireForm(Long formId) {
@@ -144,5 +154,9 @@ public class FormCommandAppService {
         } catch (JsonProcessingException ex) {
             throw new BizException(ErrorCode.FORM_DRAFT_INVALID, "字段结构反序列化失败");
         }
+    }
+
+    private void publishDomainEvents(FormDefinition formDefinition) {
+        formDefinition.pullDomainEvents().forEach(eventPublisher::publishEvent);
     }
 }

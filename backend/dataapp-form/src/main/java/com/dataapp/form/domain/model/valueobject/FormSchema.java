@@ -65,8 +65,8 @@ public final class FormSchema {
             LinkedHashMap<String, Object> layout = asObjectMap(rawNode.get("layout"));
             Integer span = asNullableInteger(layout.get("span"));
             if (span != null) {
-                if (span < 1 || span > 12) {
-                    throw invalid("字段布局 span 必须在 1-12 范围内");
+                if (span < 1 || span > 24) {
+                    throw invalid("字段布局 span 必须在 1-24 范围内");
                 }
                 layout.put("span", span);
             }

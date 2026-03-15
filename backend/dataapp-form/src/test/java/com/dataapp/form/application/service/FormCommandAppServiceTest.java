@@ -2,7 +2,6 @@ package com.dataapp.form.application.service;
 
 import com.dataapp.form.domain.model.aggregate.FormDefinition;
 import com.dataapp.form.domain.model.entity.FormDraft;
-import com.dataapp.form.domain.model.entity.FormVersion;
 import com.dataapp.form.domain.repository.FormDefinitionRepository;
 import com.dataapp.form.interfaces.dto.FormCreateResponse;
 import com.dataapp.form.interfaces.dto.FormDraftResponse;
@@ -45,7 +44,7 @@ class FormCommandAppServiceTest {
         verify(formDefinitionRepository).save(captor.capture());
         FormDefinition formDefinition = captor.getValue();
 
-        verify(formDefinitionRepository).saveDraft(org.mockito.ArgumentMatchers.any(FormDraft.class));
+        verify(formDefinitionRepository).saveDraftSnapshot(org.mockito.ArgumentMatchers.any());
         verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
         assertThat(response.formId()).isEqualTo(formDefinition.getId());
         assertThat(response.formCode()).isEqualTo("inspection_form");

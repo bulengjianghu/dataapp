@@ -46,7 +46,10 @@ public class FormCommandAppService {
         long formId = IdGenerator.nextId();
         FormDefinition definition = FormDefinition.create(formId, formCode, new FormMeta(name, ""));
         formDefinitionRepository.save(definition);
-        formDefinitionRepository.saveDraft(FormDraft.initialize(IdGenerator.nextId(), formId, 1L, OffsetDateTime.now()));
+        formDefinitionRepository.saveDraftSnapshot(new FormDraftPersistence(
+            FormDraft.initialize(IdGenerator.nextId(), formId, 1L, OffsetDateTime.now()),
+            java.util.List.of()
+        ));
         publishDomainEvents(definition);
         return new FormCreateResponse(formId, definition.getFormCode());
     }

@@ -24,7 +24,7 @@ class FormDefinitionTest {
             OffsetDateTime.parse("2026-03-15T11:00:00+08:00")
         );
 
-        assertThat(result.formDefinition().getStatus()).isEqualTo(FormDefinition.STATUS_DRAFT);
+        assertThat(result.formDefinition().getStatus()).isEqualTo("DRAFT");
         assertThat(result.formDefinition().getName()).isEqualTo("巡检表V2");
         assertThat(result.draft().getVersion()).isEqualTo(1);
         assertThat(result.draft().getFieldsJson()).isEqualTo("{\"field_1\":{}}");
@@ -32,7 +32,7 @@ class FormDefinitionTest {
 
     @Test
     void shouldActivateDefinitionWhenPublishing() {
-        FormDefinition definition = new FormDefinition(1L, "inspection_form", "巡检表", "", FormDefinition.STATUS_DRAFT, null);
+        FormDefinition definition = new FormDefinition(1L, "inspection_form", "巡检表", "", "DRAFT", null);
         FormDraft currentDraft = new FormDraft(11L, 1L, "{\"field_1\":{}}", 2, 100L, OffsetDateTime.parse("2026-03-15T10:00:00+08:00"));
 
         FormDefinition.PublishResult result = definition.publish(
@@ -44,7 +44,7 @@ class FormDefinitionTest {
             OffsetDateTime.parse("2026-03-15T12:00:00+08:00")
         );
 
-        assertThat(result.formDefinition().getStatus()).isEqualTo(FormDefinition.STATUS_ACTIVE);
+        assertThat(result.formDefinition().getStatus()).isEqualTo("ACTIVE");
         assertThat(result.formDefinition().getCurrentVersionId()).isEqualTo(99L);
         assertThat(result.version().getVersionNo()).isEqualTo(3);
         assertThat(result.draft().getVersion()).isEqualTo(2);

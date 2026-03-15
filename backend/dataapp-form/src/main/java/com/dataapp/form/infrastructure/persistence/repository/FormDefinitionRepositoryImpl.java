@@ -87,8 +87,7 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
         formDefinitionMapper.update(po);
     }
 
-    @Override
-    public void saveDraft(FormDraft formDraft) {
+    private void saveDraft(FormDraft formDraft) {
         var po = new com.dataapp.form.infrastructure.persistence.po.FormDraftPO();
         po.setId(formDraft.getId());
         po.setFormId(formDraft.getFormId());
@@ -98,7 +97,6 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
         formDefinitionMapper.upsertDraft(po);
     }
 
-    @Override
     public void saveDraftSnapshot(FormDraftPersistence draftPersistence) {
         saveDraft(draftPersistence.draft());
         replaceDraftFields(draftPersistence.draft().getFormId(), draftPersistence.fieldIndexes());
@@ -109,8 +107,7 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
         return formDefinitionMapper.selectMaxVersionNo(formId) + 1;
     }
 
-    @Override
-    public void saveVersion(FormVersion formVersion) {
+    private void saveVersion(FormVersion formVersion) {
         var po = new com.dataapp.form.infrastructure.persistence.po.FormVersionPO();
         po.setId(formVersion.getId());
         po.setFormId(formVersion.getFormId());
@@ -120,12 +117,10 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
         formDefinitionMapper.insertVersion(po);
     }
 
-    @Override
-    public void updateCurrentVersion(Long formId, Long versionId, String status) {
+    private void updateCurrentVersion(Long formId, Long versionId, String status) {
         formDefinitionMapper.updateCurrentVersion(formId, versionId, status);
     }
 
-    @Override
     public void savePublishedSnapshot(FormPublishPersistence publishPersistence) {
         saveDraft(publishPersistence.draft());
         replaceDraftFields(publishPersistence.formDefinition().getId(), publishPersistence.fieldIndexes());
@@ -151,8 +146,7 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
         formDefinitionMapper.deleteByFormId(formId);
     }
 
-    @Override
-    public void replaceDraftFields(Long formId, List<FormFieldIndex> fields) {
+    private void replaceDraftFields(Long formId, List<FormFieldIndex> fields) {
         formDefinitionMapper.deleteDraftFieldsByFormId(formId);
         for (FormFieldIndex field : fields) {
             formDefinitionMapper.insertDraftField(
@@ -170,8 +164,7 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
         }
     }
 
-    @Override
-    public void replaceVersionFields(Long formVersionId, Long formId, List<FormFieldIndex> fields) {
+    private void replaceVersionFields(Long formVersionId, Long formId, List<FormFieldIndex> fields) {
         formDefinitionMapper.deleteVersionFieldsByVersionId(formVersionId);
         for (FormFieldIndex field : fields) {
             formDefinitionMapper.insertVersionField(

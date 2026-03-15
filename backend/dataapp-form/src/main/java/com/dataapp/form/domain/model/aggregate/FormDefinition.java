@@ -7,6 +7,7 @@ import com.dataapp.form.domain.model.event.FormDeletedEvent;
 import com.dataapp.form.domain.model.event.FormDraftSavedEvent;
 import com.dataapp.form.domain.model.event.FormPublishedEvent;
 import com.dataapp.form.domain.model.valueobject.FormMeta;
+import com.dataapp.form.domain.model.valueobject.FormStatus;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.dataapp.shared.kernel.model.AggregateRoot;
@@ -14,10 +15,6 @@ import com.dataapp.shared.kernel.model.AggregateRoot;
 import java.time.OffsetDateTime;
 
 public class FormDefinition extends AggregateRoot<Long> {
-
-    public static final String STATUS_DRAFT = "DRAFT";
-    public static final String STATUS_ACTIVE = "ACTIVE";
-    public static final String STATUS_DELETED = "DELETED";
 
     private final Long id;
     private final String formCode;
@@ -62,14 +59,14 @@ public class FormDefinition extends AggregateRoot<Long> {
 
     public static FormDefinition create(Long id, String formCode, FormMeta meta) {
         String resolvedFormCode = formCode == null || formCode.isBlank() ? "form_" + id : formCode.trim();
-        FormDefinition definition = new FormDefinition(id, resolvedFormCode, meta.name(), meta.description(), STATUS_DRAFT, null);
+        FormDefinition definition = new FormDefinition(id, resolvedFormCode, meta.name(), meta.description(), FormStatus.DRAFT.code(), null);
         definition.registerEvent(new FormCreatedEvent(id, resolvedFormCode));
         return definition;
     }
 
     public FormDefinition saveDraft(FormMeta meta) {
         assertNotDeleted();
-        return new FormDefinition(id, formCode, meta.name(), meta.description(), STATUS_DRAFT, currentVersionId);
+        return new FormDefinition(id, formCode, meta.name(), meta.description(), FormStatus.DRAFT.code(), currentVersionId);
     }
 
     public DraftSaveResult saveDraft(
@@ -107,7 +104,7 @@ public class FormDefinition extends AggregateRoot<Long> {
             formCode,
             name,
             description,
-            STATUS_ACTIVE,
+            FormStatus.ACTIVE.code(),
             versionId
         );
         activatedDefinition.registerEvent(new FormPublishedEvent(id, versionId, versionNo));
@@ -115,13 +112,13 @@ public class FormDefinition extends AggregateRoot<Long> {
     }
 
     public FormDefinition delete() {
-        FormDefinition deletedDefinition = new FormDefinition(id, formCode, name, description, STATUS_DELETED, currentVersionId);
+        FormDefinition deletedDefinition = new FormDefinition(id, formCode, name, description, FormStatus.DELETED.code(), currentVersionId);
         deletedDefinition.registerEvent(new FormDeletedEvent(id));
         return deletedDefinition;
     }
 
     private void assertNotDeleted() {
-        if (STATUS_DELETED.equals(status)) {
+        if (FormStatus.DELETED.code().equals(status)) {
             throw new BizException(ErrorCode.FORM_NOT_FOUND, "表单已删除");
         }
     }

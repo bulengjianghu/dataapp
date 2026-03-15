@@ -88,11 +88,11 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
     @Override
     public void saveDraft(FormDraft formDraft) {
         var po = new com.dataapp.form.infrastructure.persistence.po.FormDraftPO();
-        po.setId(formDraft.id());
-        po.setFormId(formDraft.formId());
-        po.setFieldsJson(formDraft.fieldsJson());
-        po.setVersion(formDraft.version());
-        po.setUpdatedBy(formDraft.updatedBy());
+        po.setId(formDraft.getId());
+        po.setFormId(formDraft.getFormId());
+        po.setFieldsJson(formDraft.getFieldsJson());
+        po.setVersion(formDraft.getVersion());
+        po.setUpdatedBy(formDraft.getUpdatedBy());
         formDefinitionMapper.upsertDraft(po);
     }
 
@@ -104,11 +104,11 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
     @Override
     public void saveVersion(FormVersion formVersion) {
         var po = new com.dataapp.form.infrastructure.persistence.po.FormVersionPO();
-        po.setId(formVersion.id());
-        po.setFormId(formVersion.formId());
-        po.setVersionNo(formVersion.versionNo());
-        po.setFieldsJson(formVersion.fieldsJson());
-        po.setPublishedBy(formVersion.publishedBy());
+        po.setId(formVersion.getId());
+        po.setFormId(formVersion.getFormId());
+        po.setVersionNo(formVersion.getVersionNo());
+        po.setFieldsJson(formVersion.getFieldsJson());
+        po.setPublishedBy(formVersion.getPublishedBy());
         formDefinitionMapper.insertVersion(po);
     }
 

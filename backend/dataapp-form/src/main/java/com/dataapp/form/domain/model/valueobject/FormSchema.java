@@ -1,10 +1,9 @@
-package com.dataapp.form.application.service;
+package com.dataapp.form.domain.model.valueobject;
 
 import com.dataapp.form.domain.model.entity.FormFieldIndex;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.dataapp.shared.util.IdGenerator;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,19 +15,34 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-@Component
-class FormSchemaNormalizer {
+public final class FormSchema {
 
-    NormalizedSchema normalizeForDraft(Map<String, Object> rawFields) {
+    private final Map<String, Object> fields;
+    private final List<FormFieldIndex> fieldIndexes;
+
+    private FormSchema(Map<String, Object> fields, List<FormFieldIndex> fieldIndexes) {
+        this.fields = Map.copyOf(fields);
+        this.fieldIndexes = List.copyOf(fieldIndexes);
+    }
+
+    public static FormSchema forDraft(Map<String, Object> rawFields) {
         return normalize(rawFields, false);
     }
 
-    NormalizedSchema normalizeForPublish(Map<String, Object> rawFields) {
+    public static FormSchema forPublish(Map<String, Object> rawFields) {
         return normalize(rawFields, true);
     }
 
+    public Map<String, Object> fields() {
+        return fields;
+    }
+
+    public List<FormFieldIndex> fieldIndexes() {
+        return fieldIndexes;
+    }
+
     @SuppressWarnings("unchecked")
-    private NormalizedSchema normalize(Map<String, Object> rawFields, boolean strictPublishValidation) {
+    private static FormSchema normalize(Map<String, Object> rawFields, boolean strictPublishValidation) {
         Map<String, Object> source = rawFields == null ? Map.of() : rawFields;
         LinkedHashMap<String, LinkedHashMap<String, Object>> nodes = new LinkedHashMap<>();
         Set<String> fieldKeys = new LinkedHashSet<>();
@@ -86,10 +100,10 @@ class FormSchemaNormalizer {
         for (Map.Entry<String, LinkedHashMap<String, Object>> entry : nodes.entrySet()) {
             normalizedFields.put(entry.getKey(), entry.getValue());
         }
-        return new NormalizedSchema(normalizedFields, buildFieldIndexes(nodes));
+        return new FormSchema(normalizedFields, buildFieldIndexes(nodes));
     }
 
-    private void validateGraph(LinkedHashMap<String, LinkedHashMap<String, Object>> nodes) {
+    private static void validateGraph(LinkedHashMap<String, LinkedHashMap<String, Object>> nodes) {
         Set<String> roots = new LinkedHashSet<>();
 
         for (LinkedHashMap<String, Object> node : nodes.values()) {
@@ -129,7 +143,10 @@ class FormSchemaNormalizer {
         }
     }
 
-    private void validateComponents(LinkedHashMap<String, LinkedHashMap<String, Object>> nodes, boolean strictPublishValidation) {
+    private static void validateComponents(
+        LinkedHashMap<String, LinkedHashMap<String, Object>> nodes,
+        boolean strictPublishValidation
+    ) {
         for (LinkedHashMap<String, Object> node : nodes.values()) {
             String nodeType = asString(node.get("type"), null);
             LinkedHashMap<String, Object> props = asObjectMap(node.get("props"));
@@ -162,7 +179,7 @@ class FormSchemaNormalizer {
         }
     }
 
-    private void dfs(
+    private static void dfs(
         String nodeId,
         LinkedHashMap<String, LinkedHashMap<String, Object>> nodes,
         Set<String> visited,
@@ -183,10 +200,10 @@ class FormSchemaNormalizer {
         visited.add(nodeId);
     }
 
-    private List<FormFieldIndex> buildFieldIndexes(LinkedHashMap<String, LinkedHashMap<String, Object>> nodes) {
+    private static List<FormFieldIndex> buildFieldIndexes(LinkedHashMap<String, LinkedHashMap<String, Object>> nodes) {
         List<FormFieldIndex> indexes = new ArrayList<>();
         List<LinkedHashMap<String, Object>> sortedNodes = new ArrayList<>(nodes.values());
-        sortedNodes.sort(Comparator.comparingInt(this::sortOrder));
+        sortedNodes.sort(Comparator.comparingInt(FormSchema::sortOrder));
 
         for (LinkedHashMap<String, Object> node : sortedNodes) {
             String nodeId = asString(node.get("id"), null);
@@ -215,13 +232,13 @@ class FormSchemaNormalizer {
         return indexes;
     }
 
-    private int sortOrder(Map<String, Object> node) {
+    private static int sortOrder(Map<String, Object> node) {
         Map<String, Object> layout = asObjectMap(node.get("layout"));
         Integer order = asNullableInteger(layout.get("order"));
         return order == null ? Integer.MAX_VALUE : order;
     }
 
-    private LinkedHashMap<String, Object> asObjectMap(Object value) {
+    private static LinkedHashMap<String, Object> asObjectMap(Object value) {
         LinkedHashMap<String, Object> map = new LinkedHashMap<>();
         if (value instanceof Map<?, ?> rawMap) {
             for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
@@ -231,7 +248,7 @@ class FormSchemaNormalizer {
         return map;
     }
 
-    private List<String> asStringList(Object value) {
+    private static List<String> asStringList(Object value) {
         List<String> values = new ArrayList<>();
         if (value instanceof Collection<?> collection) {
             for (Object item : collection) {
@@ -241,7 +258,7 @@ class FormSchemaNormalizer {
         return values;
     }
 
-    private String asRequiredString(Object value, String message) {
+    private static String asRequiredString(Object value, String message) {
         String normalized = asNullableString(value);
         if (normalized == null || normalized.isBlank()) {
             throw invalid(message);
@@ -249,12 +266,12 @@ class FormSchemaNormalizer {
         return normalized;
     }
 
-    private String asString(Object value, String defaultValue) {
+    private static String asString(Object value, String defaultValue) {
         String normalized = asNullableString(value);
         return normalized == null ? defaultValue : normalized;
     }
 
-    private String asNullableString(Object value) {
+    private static String asNullableString(Object value) {
         if (value == null) {
             return null;
         }
@@ -262,7 +279,7 @@ class FormSchemaNormalizer {
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private Integer asNullableInteger(Object value) {
+    private static Integer asNullableInteger(Object value) {
         if (value == null) {
             return null;
         }
@@ -276,7 +293,7 @@ class FormSchemaNormalizer {
         }
     }
 
-    private String firstNonBlank(String... candidates) {
+    private static String firstNonBlank(String... candidates) {
         for (String candidate : candidates) {
             if (candidate != null && !candidate.isBlank()) {
                 return candidate;
@@ -285,10 +302,7 @@ class FormSchemaNormalizer {
         return null;
     }
 
-    private BizException invalid(String message) {
+    private static BizException invalid(String message) {
         return new BizException(ErrorCode.FORM_DRAFT_INVALID, message);
-    }
-
-    record NormalizedSchema(Map<String, Object> fields, List<FormFieldIndex> fieldIndexes) {
     }
 }

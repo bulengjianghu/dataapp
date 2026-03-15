@@ -60,8 +60,8 @@ public class FormQueryAppService {
             formDefinition.getName(),
             formDefinition.getDescription(),
             formDefinition.getStatus(),
-            draft.version(),
-            readFields(draft.fieldsJson())
+            draft.getVersion(),
+            readFields(draft.getFieldsJson())
         );
     }
 
@@ -93,9 +93,9 @@ public class FormQueryAppService {
             formDefinition.getFormCode(),
             formDefinition.getName(),
             formDefinition.getDescription(),
-            formVersion.id(),
-            formVersion.versionNo(),
-            readFields(formVersion.fieldsJson())
+            formVersion.getId(),
+            formVersion.getVersionNo(),
+            readFields(formVersion.getFieldsJson())
         );
     }
 

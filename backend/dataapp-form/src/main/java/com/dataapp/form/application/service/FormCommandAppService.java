@@ -2,8 +2,9 @@ package com.dataapp.form.application.service;
 
 import com.dataapp.form.domain.model.aggregate.FormDefinition;
 import com.dataapp.form.domain.model.entity.FormDraft;
-import com.dataapp.form.domain.model.entity.FormVersion;
 import com.dataapp.form.domain.repository.FormDefinitionRepository;
+import com.dataapp.form.domain.model.valueobject.FormMeta;
+import com.dataapp.form.domain.model.valueobject.FormSchema;
 import com.dataapp.form.interfaces.dto.FormCreateResponse;
 import com.dataapp.form.interfaces.dto.FormDraftResponse;
 import com.dataapp.form.interfaces.dto.FormPublishResponse;
@@ -24,70 +25,53 @@ import java.util.Map;
 public class FormCommandAppService {
 
     private final FormDefinitionRepository formDefinitionRepository;
-    private final FormSchemaNormalizer formSchemaNormalizer;
     private final ObjectMapper objectMapper;
 
     public FormCommandAppService(
         FormDefinitionRepository formDefinitionRepository,
-        FormSchemaNormalizer formSchemaNormalizer,
         ObjectMapper objectMapper
     ) {
         this.formDefinitionRepository = formDefinitionRepository;
-        this.formSchemaNormalizer = formSchemaNormalizer;
         this.objectMapper = objectMapper;
     }
 
     @Transactional
     public FormCreateResponse create(String name, String formCode) {
         long formId = IdGenerator.nextId();
-        String resolvedFormCode = (formCode == null || formCode.isBlank()) ? "form_" + formId : formCode.trim();
-        formDefinitionRepository.save(new FormDefinition(formId, resolvedFormCode, name, "", "DRAFT", null));
-        formDefinitionRepository.saveDraft(new FormDraft(
-            IdGenerator.nextId(),
-            formId,
-            "{}",
-            0,
-            1L,
-            OffsetDateTime.now()
-        ));
-        return new FormCreateResponse(formId, resolvedFormCode);
+        FormDefinition definition = FormDefinition.create(formId, formCode, new FormMeta(name, ""));
+        formDefinitionRepository.save(definition);
+        formDefinitionRepository.saveDraft(FormDraft.initialize(IdGenerator.nextId(), formId, 1L, OffsetDateTime.now()));
+        return new FormCreateResponse(formId, definition.getFormCode());
     }
 
     @Transactional
     public FormDraftResponse saveDraft(Long formId, String name, String description, Map<String, Object> fields) {
         FormDefinition current = requireForm(formId);
-        FormSchemaNormalizer.NormalizedSchema normalizedSchema = formSchemaNormalizer.normalizeForDraft(fields);
-        String normalizedDescription = description == null ? "" : description;
-        String fieldsJson = writeFields(normalizedSchema.fields());
+        FormMeta meta = new FormMeta(name, description);
+        FormSchema schema = FormSchema.forDraft(fields);
+        String fieldsJson = writeFields(schema.fields());
         FormDraft currentDraft = formDefinitionRepository.findDraftByFormId(formId);
-        int nextVersion = currentDraft == null ? 1 : currentDraft.version() + 1;
-
-        formDefinitionRepository.update(new FormDefinition(
-            current.getId(),
-            current.getFormCode(),
-            name,
-            normalizedDescription,
-            "DRAFT",
-            current.getCurrentVersionId()
-        ));
-        formDefinitionRepository.saveDraft(new FormDraft(
-            currentDraft == null ? IdGenerator.nextId() : currentDraft.id(),
-            formId,
+        FormDefinition.DraftSaveResult result = current.saveDraft(
+            meta,
+            currentDraft,
             fieldsJson,
-            nextVersion,
+            IdGenerator.nextId(),
             1L,
             OffsetDateTime.now()
-        ));
-        formDefinitionRepository.replaceDraftFields(formId, normalizedSchema.fieldIndexes());
+        );
+
+        formDefinitionRepository.update(result.formDefinition());
+        formDefinitionRepository.saveDraft(result.draft());
+        formDefinitionRepository.replaceDraftFields(formId, schema.fieldIndexes());
 
         return new FormDraftResponse(
             formId,
             current.getFormCode(),
-            name,
-            normalizedDescription,
-            "DRAFT",
-            nextVersion,
-            normalizedSchema.fields()
+            result.formDefinition().getName(),
+            result.formDefinition().getDescription(),
+            result.formDefinition().getStatus(),
+            result.draft().getVersion(),
+            schema.fields()
         );
     }
 
@@ -99,41 +83,35 @@ public class FormCommandAppService {
             throw new BizException(ErrorCode.FORM_NOT_FOUND, "表单草稿不存在");
         }
 
-        Map<String, Object> draftFields = readFields(draft.fieldsJson());
-        FormSchemaNormalizer.NormalizedSchema normalizedSchema = formSchemaNormalizer.normalizeForPublish(draftFields);
-        String fieldsJson = writeFields(normalizedSchema.fields());
+        Map<String, Object> draftFields = readFields(draft.getFieldsJson());
+        FormSchema schema = FormSchema.forPublish(draftFields);
+        String fieldsJson = writeFields(schema.fields());
         int versionNo = formDefinitionRepository.nextVersionNo(formId);
         long versionId = IdGenerator.nextId();
-
-        formDefinitionRepository.saveDraft(new FormDraft(
-            draft.id(),
-            draft.formId(),
+        FormDefinition.PublishResult result = definition.publish(
+            draft,
             fieldsJson,
-            draft.version(),
-            1L,
-            OffsetDateTime.now()
-        ));
-        formDefinitionRepository.replaceDraftFields(formId, normalizedSchema.fieldIndexes());
-        formDefinitionRepository.saveVersion(new FormVersion(
-            versionId,
-            formId,
             versionNo,
-            fieldsJson,
+            versionId,
             1L,
             OffsetDateTime.now()
-        ));
-        formDefinitionRepository.replaceVersionFields(versionId, formId, normalizedSchema.fieldIndexes());
-        formDefinitionRepository.updateCurrentVersion(formId, versionId, "ACTIVE");
+        );
+
+        formDefinitionRepository.saveDraft(result.draft());
+        formDefinitionRepository.replaceDraftFields(formId, schema.fieldIndexes());
+        formDefinitionRepository.saveVersion(result.version());
+        formDefinitionRepository.replaceVersionFields(versionId, formId, schema.fieldIndexes());
+        formDefinitionRepository.updateCurrentVersion(formId, versionId, result.formDefinition().getStatus());
 
         return new FormPublishResponse(
             formId,
-            definition.getFormCode(),
-            definition.getName(),
-            definition.getDescription(),
+            result.formDefinition().getFormCode(),
+            result.formDefinition().getName(),
+            result.formDefinition().getDescription(),
             versionId,
             versionNo,
-            "ACTIVE",
-            normalizedSchema.fields()
+            result.formDefinition().getStatus(),
+            schema.fields()
         );
     }
 

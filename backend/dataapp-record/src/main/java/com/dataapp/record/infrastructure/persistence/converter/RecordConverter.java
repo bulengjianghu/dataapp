@@ -57,7 +57,7 @@ public final class RecordConverter {
         }
     }
 
-    private static Map<String, List<Map<String, Object>>> toDetailTables(
+    public static Map<String, List<Map<String, Object>>> toDetailTables(
         List<RecordDetailRowPO> detailRows,
         ObjectMapper objectMapper
     ) {

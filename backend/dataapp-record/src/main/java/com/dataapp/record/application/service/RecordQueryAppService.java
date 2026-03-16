@@ -34,10 +34,8 @@ public class RecordQueryAppService {
             record.getFormId(),
             record.getFormVersionId(),
             record.getStatus(),
-            "SUBMITTED".equals(record.getStatus()) ? record.getSubmittedData().mainData() : record.getDraftData().mainData(),
-            "SUBMITTED".equals(record.getStatus())
-                ? record.getSubmittedData().detailTables()
-                : record.getDraftData().detailTables()
+            record.readableData().mainData(),
+            record.readableData().detailTables()
         );
     }
 

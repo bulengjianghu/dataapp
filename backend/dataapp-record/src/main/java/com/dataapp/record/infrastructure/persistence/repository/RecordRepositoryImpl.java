@@ -4,6 +4,7 @@ import com.dataapp.record.domain.model.aggregate.Record;
 import com.dataapp.record.domain.repository.RecordRepository;
 import com.dataapp.record.infrastructure.persistence.converter.RecordConverter;
 import com.dataapp.record.infrastructure.persistence.mapper.RecordMapper;
+import com.dataapp.record.infrastructure.persistence.po.RecordDetailRowPO;
 import com.dataapp.record.infrastructure.persistence.po.RecordPO;
 import com.dataapp.shared.util.IdGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,6 +43,9 @@ public class RecordRepositoryImpl implements RecordRepository {
     @Override
     public void save(Record record) {
         RecordPO existing = recordMapper.selectById(record.getId());
+        java.util.List<RecordDetailRowPO> existingDetailRows = existing == null
+            ? java.util.List.of()
+            : recordMapper.selectDetailRowsByRecordId(record.getId());
         String draftJson = RecordConverter.writeJson(record.getDraftData().mainData(), objectMapper);
         String submittedJson = RecordConverter.writeJson(record.getSubmittedData().mainData(), objectMapper);
         String afterJson = RecordConverter.writeJson(record.getDraftData().toMap(), objectMapper);
@@ -57,7 +61,14 @@ public class RecordRepositoryImpl implements RecordRepository {
             recordMapper.insertMain(po);
             recordMapper.insertData(IdGenerator.nextId(), record.getId(), draftJson, submittedJson);
             replaceDetailRows(record);
-            recordMapper.insertHistory(IdGenerator.nextId(), record.getId(), "CREATE", "{}", afterJson, record.getUpdatedBy());
+            recordMapper.insertHistory(
+                IdGenerator.nextId(),
+                record.getId(),
+                record.getLastOperationType().name(),
+                "{}",
+                afterJson,
+                record.getUpdatedBy()
+            );
             return;
         }
 
@@ -71,8 +82,8 @@ public class RecordRepositoryImpl implements RecordRepository {
         recordMapper.insertHistory(
             IdGenerator.nextId(),
             record.getId(),
-            "SUBMITTED".equals(record.getStatus()) ? "SUBMIT" : "SAVE_DRAFT",
-            buildBeforeJson(existing),
+            record.getLastOperationType().name(),
+            buildBeforeJson(existing, existingDetailRows),
             afterJson,
             record.getUpdatedBy()
         );
@@ -93,10 +104,10 @@ public class RecordRepositoryImpl implements RecordRepository {
         });
     }
 
-    private String buildBeforeJson(RecordPO existing) {
+    private String buildBeforeJson(RecordPO existing, java.util.List<RecordDetailRowPO> existingDetailRows) {
         LinkedHashMap<String, Object> before = new LinkedHashMap<>();
         before.put("mainData", RecordConverter.readJson(existing.getDraftDataJson(), objectMapper));
-        before.put("detailTables", Map.of());
+        before.put("detailTables", RecordConverter.toDetailTables(existingDetailRows, objectMapper));
         return RecordConverter.writeJson(before, objectMapper);
     }
 }

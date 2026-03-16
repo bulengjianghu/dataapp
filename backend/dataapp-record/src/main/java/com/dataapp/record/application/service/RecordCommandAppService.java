@@ -4,17 +4,17 @@ import com.dataapp.record.domain.model.aggregate.Record;
 import com.dataapp.record.domain.model.service.RecordAccessPolicy;
 import com.dataapp.record.domain.model.service.RecordDataValidationService;
 import com.dataapp.record.domain.model.valueobject.PublishedFormSchema;
-import com.dataapp.record.domain.model.valueobject.ValidationResult;
+import com.dataapp.record.domain.model.valueobject.RecordData;
 import com.dataapp.record.domain.repository.PublishedFormSchemaGateway;
 import com.dataapp.record.domain.repository.RecordRepository;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.dataapp.shared.security.CurrentUser;
 import com.dataapp.shared.util.IdGenerator;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 public class RecordCommandAppService {
@@ -22,23 +22,32 @@ public class RecordCommandAppService {
     private final RecordRepository recordRepository;
     private final PublishedFormSchemaGateway publishedFormSchemaGateway;
     private final RecordDataValidationService recordDataValidationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public RecordCommandAppService(
         RecordRepository recordRepository,
         PublishedFormSchemaGateway publishedFormSchemaGateway,
-        RecordDataValidationService recordDataValidationService
+        RecordDataValidationService recordDataValidationService,
+        ApplicationEventPublisher eventPublisher
     ) {
         this.recordRepository = recordRepository;
         this.publishedFormSchemaGateway = publishedFormSchemaGateway;
         this.recordDataValidationService = recordDataValidationService;
+        this.eventPublisher = eventPublisher;
     }
 
     public Long create(CurrentUser currentUser, Long formId, Long formVersionId, Map<String, Object> data) {
         PublishedFormSchema formSchema = loadFormSchema(formId, formVersionId);
-        assertValid(recordDataValidationService.validateForDraft(formSchema, data));
-
         Long recordId = IdGenerator.nextId();
-        recordRepository.save(Record.create(recordId, formId, formVersionId, currentUser.userId(), data));
+        Record record = Record.create(
+            recordId,
+            formSchema,
+            currentUser.userId(),
+            RecordData.of(data),
+            recordDataValidationService
+        );
+        recordRepository.save(record);
+        publishDomainEvents(record);
         return recordId;
     }
 
@@ -46,18 +55,18 @@ public class RecordCommandAppService {
         Record record = getRecord(recordId);
         assertAccess(currentUser, record);
         PublishedFormSchema formSchema = loadFormSchema(record.getFormId(), record.getFormVersionId());
-        assertValid(recordDataValidationService.validateForDraft(formSchema, data));
-
-        recordRepository.save(record.saveDraft(data, currentUser.userId()));
+        Record saved = record.saveDraft(formSchema, RecordData.of(data), currentUser.userId(), recordDataValidationService);
+        recordRepository.save(saved);
+        publishDomainEvents(saved);
     }
 
     public void submit(CurrentUser currentUser, Long recordId, Map<String, Object> data) {
         Record record = getRecord(recordId);
         assertAccess(currentUser, record);
         PublishedFormSchema formSchema = loadFormSchema(record.getFormId(), record.getFormVersionId());
-        assertValid(recordDataValidationService.validateForSubmit(formSchema, data));
-
-        recordRepository.save(record.submit(data, currentUser.userId()));
+        Record submitted = record.submit(formSchema, RecordData.of(data), currentUser.userId(), recordDataValidationService);
+        recordRepository.save(submitted);
+        publishDomainEvents(submitted);
     }
 
     private Record getRecord(Long recordId) {
@@ -82,12 +91,7 @@ public class RecordCommandAppService {
         }
     }
 
-    private void assertValid(ValidationResult validationResult) {
-        if (!validationResult.isValid()) {
-            String message = validationResult.issues().stream()
-                .map(issue -> issue.fieldKey() + ":" + issue.message())
-                .collect(Collectors.joining("; "));
-            throw new BizException(ErrorCode.RECORD_DATA_INVALID, message);
-        }
+    private void publishDomainEvents(Record record) {
+        record.pullDomainEvents().forEach(eventPublisher::publishEvent);
     }
 }

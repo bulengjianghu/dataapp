@@ -63,6 +63,18 @@ class RecordQueryAppServiceTest {
     }
 
     @Test
+    void shouldReturnSubmittedSnapshotWhenRecordAlreadySubmitted() {
+        when(recordRepository.findById(25L)).thenReturn(
+            Record.create(25L, 100L, 1L, 101L, Map.of("mainData", Map.of("fld_name", "草稿值")))
+                .submit(Map.of("mainData", Map.of("fld_name", "提交值")), 101L)
+        );
+
+        RecordDetailResponse response = recordQueryAppService.getById(NORMAL_USER, 25L);
+
+        assertThat(response.mainData()).containsEntry("fld_name", "提交值");
+    }
+
+    @Test
     void shouldThrowBizExceptionWhenUserCannotViewRecord() {
         when(recordRepository.findById(23L)).thenReturn(
             Record.create(23L, 100L, 1L, 202L, Map.of("mainData", Map.of("fld_name", "李四")))

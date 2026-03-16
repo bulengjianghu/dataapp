@@ -9,7 +9,7 @@ import com.dataapp.record.domain.repository.RecordRepository;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.dataapp.shared.security.CurrentUser;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -42,6 +42,9 @@ class RecordCommandAppServiceTest {
 
     @Spy
     private RecordDataValidationService recordDataValidationService = new RecordDataValidationService();
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private RecordCommandAppService recordCommandAppService;

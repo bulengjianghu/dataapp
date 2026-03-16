@@ -35,7 +35,10 @@ class RecordQueryAppServiceTest {
     @Test
     void shouldReturnRecordDetailWhenOwnerQueriesRecord() {
         when(recordRepository.findById(21L)).thenReturn(
-            Record.create(21L, 100L, 1L, 101L, Map.of("fld_name", "张三"))
+            Record.create(21L, 100L, 1L, 101L, Map.of(
+                "mainData", Map.of("fld_name", "张三"),
+                "detailTables", Map.of("dt_order_items", List.of(Map.of("fld_item_name", "商品A")))
+            ))
         );
 
         RecordDetailResponse response = recordQueryAppService.getById(NORMAL_USER, 21L);
@@ -44,24 +47,25 @@ class RecordQueryAppServiceTest {
         assertThat(response.formId()).isEqualTo(100L);
         assertThat(response.formVersionId()).isEqualTo(1L);
         assertThat(response.status()).isEqualTo("DRAFT");
-        assertThat(response.data()).containsEntry("fld_name", "张三");
+        assertThat(response.mainData()).containsEntry("fld_name", "张三");
+        assertThat(response.detailTables()).containsKey("dt_order_items");
     }
 
     @Test
     void shouldAllowAdminToViewAnyRecord() {
         when(recordRepository.findById(22L)).thenReturn(
-            Record.create(22L, 100L, 1L, 202L, Map.of("fld_name", "李四"))
+            Record.create(22L, 100L, 1L, 202L, Map.of("mainData", Map.of("fld_name", "李四")))
         );
 
         RecordDetailResponse response = recordQueryAppService.getById(ADMIN_USER, 22L);
 
-        assertThat(response.data()).containsEntry("fld_name", "李四");
+        assertThat(response.mainData()).containsEntry("fld_name", "李四");
     }
 
     @Test
     void shouldThrowBizExceptionWhenUserCannotViewRecord() {
         when(recordRepository.findById(23L)).thenReturn(
-            Record.create(23L, 100L, 1L, 202L, Map.of("fld_name", "李四"))
+            Record.create(23L, 100L, 1L, 202L, Map.of("mainData", Map.of("fld_name", "李四")))
         );
 
         assertThatThrownBy(() -> recordQueryAppService.getById(NORMAL_USER, 23L))
@@ -83,8 +87,8 @@ class RecordQueryAppServiceTest {
     @Test
     void shouldListOnlyCurrentUsersRecordsForNormalUser() {
         when(recordRepository.findByFormId(100L)).thenReturn(List.of(
-            Record.create(31L, 100L, 1L, 101L, Map.of("fld_name", "张三")),
-            Record.create(32L, 100L, 1L, 202L, Map.of("fld_name", "李四"))
+            Record.create(31L, 100L, 1L, 101L, Map.of("mainData", Map.of("fld_name", "张三"))),
+            Record.create(32L, 100L, 1L, 202L, Map.of("mainData", Map.of("fld_name", "李四")))
         ));
 
         List<RecordListItemResponse> responses = recordQueryAppService.listByFormId(NORMAL_USER, 100L);
@@ -96,8 +100,9 @@ class RecordQueryAppServiceTest {
     @Test
     void shouldListAllRecordsForAdmin() {
         when(recordRepository.findByFormId(100L)).thenReturn(List.of(
-            Record.create(31L, 100L, 1L, 101L, Map.of("fld_name", "张三")),
-            Record.create(32L, 100L, 1L, 202L, Map.of("fld_name", "李四")).submit(Map.of("fld_name", "李四"), 202L)
+            Record.create(31L, 100L, 1L, 101L, Map.of("mainData", Map.of("fld_name", "张三"))),
+            Record.create(32L, 100L, 1L, 202L, Map.of("mainData", Map.of("fld_name", "李四")))
+                .submit(Map.of("mainData", Map.of("fld_name", "李四")), 202L)
         ));
 
         List<RecordListItemResponse> responses = recordQueryAppService.listByFormId(ADMIN_USER, 100L);

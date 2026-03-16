@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/records")
@@ -45,7 +47,7 @@ public class RecordController {
             currentUser,
             request.formId(),
             request.formVersionId(),
-            request.data()
+            payloadOf(request.mainData(), request.detailTables())
         ));
     }
 
@@ -55,7 +57,7 @@ public class RecordController {
         @PathVariable("recordId") Long recordId,
         @Valid @RequestBody RecordDraftSaveRequest request
     ) {
-        recordCommandAppService.saveDraft(currentUser, recordId, request.data());
+        recordCommandAppService.saveDraft(currentUser, recordId, payloadOf(request.mainData(), request.detailTables()));
         return Result.success(Boolean.TRUE);
     }
 
@@ -65,7 +67,7 @@ public class RecordController {
         @PathVariable("recordId") Long recordId,
         @Valid @RequestBody RecordSubmitRequest request
     ) {
-        recordCommandAppService.submit(currentUser, recordId, request.data());
+        recordCommandAppService.submit(currentUser, recordId, payloadOf(request.mainData(), request.detailTables()));
         return Result.success(Boolean.TRUE);
     }
 
@@ -83,5 +85,15 @@ public class RecordController {
         @PathVariable("formId") Long formId
     ) {
         return Result.success(recordQueryAppService.listByFormId(currentUser, formId));
+    }
+
+    private Map<String, Object> payloadOf(
+        Map<String, Object> mainData,
+        Map<String, List<Map<String, Object>>> detailTables
+    ) {
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("mainData", mainData);
+        payload.put("detailTables", detailTables);
+        return payload;
     }
 }

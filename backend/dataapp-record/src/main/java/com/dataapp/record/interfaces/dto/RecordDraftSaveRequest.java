@@ -2,9 +2,11 @@ package com.dataapp.record.interfaces.dto;
 
 import jakarta.validation.constraints.NotNull;
 
+import java.util.List;
 import java.util.Map;
 
 public record RecordDraftSaveRequest(
-    @NotNull Map<String, Object> data
+    @NotNull Map<String, Object> mainData,
+    @NotNull Map<String, List<Map<String, Object>>> detailTables
 ) {
 }

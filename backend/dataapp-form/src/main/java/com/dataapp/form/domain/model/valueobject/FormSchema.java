@@ -118,8 +118,8 @@ public final class FormSchema {
                 throw invalid("节点父子关系非法: " + nodeId);
             }
 
-            if (!"container".equals(nodeType) && !childrenIds.isEmpty()) {
-                throw invalid("只有 container 节点允许包含子节点");
+            if (!isChildBearingNode(nodeType, node) && !childrenIds.isEmpty()) {
+                throw invalid("只有 container 或 detail_table 节点允许包含子节点");
             }
 
             for (String childId : childrenIds) {
@@ -157,6 +157,9 @@ public final class FormSchema {
             }
 
             if (!"field".equals(nodeType)) {
+                if ("detail_table".equals(nodeType)) {
+                    validateDetailTable(node, nodes, strictPublishValidation);
+                }
                 continue;
             }
 
@@ -175,6 +178,73 @@ public final class FormSchema {
                 if (!(options instanceof Collection<?> optionList) || optionList.isEmpty()) {
                     throw invalid("选项类字段至少需要一个选项");
                 }
+            }
+
+            if ("relation-select".equals(component)) {
+                validateRelationSelect(props);
+            }
+        }
+    }
+
+    private static boolean isChildBearingNode(String nodeType, Map<String, Object> node) {
+        if ("container".equals(nodeType) || "detail_table".equals(nodeType)) {
+            return true;
+        }
+        Map<String, Object> props = asObjectMap(node.get("props"));
+        return "detail-table".equals(asNullableString(props.get("component")));
+    }
+
+    private static void validateDetailTable(
+        LinkedHashMap<String, Object> node,
+        LinkedHashMap<String, LinkedHashMap<String, Object>> nodes,
+        boolean strictPublishValidation
+    ) {
+        LinkedHashMap<String, Object> props = asObjectMap(node.get("props"));
+        if (!"detail-table".equals(asNullableString(props.get("component")))) {
+            throw invalid("明细表组件类型非法");
+        }
+
+        Integer minRows = asNullableInteger(props.get("minRows"));
+        Integer maxRows = asNullableInteger(props.get("maxRows"));
+        if (minRows != null && maxRows != null && minRows > maxRows) {
+            throw invalid("明细表最小行数不能大于最大行数");
+        }
+
+        if (!strictPublishValidation) {
+            return;
+        }
+
+        List<String> childrenIds = asStringList(node.get("childrenIds"));
+        if (childrenIds.isEmpty()) {
+            throw invalid("明细表至少有一个有效列");
+        }
+
+        for (String childId : childrenIds) {
+            LinkedHashMap<String, Object> child = nodes.get(childId);
+            if (child == null || !"field".equals(asNullableString(child.get("type")))) {
+                throw invalid("明细表只能包含字段列");
+            }
+        }
+    }
+
+    private static void validateRelationSelect(Map<String, Object> props) {
+        if (asNullableString(props.get("sourceFormId")) == null) {
+            throw invalid("关联选择必须配置来源表单");
+        }
+
+        Object mappings = props.get("mappings");
+        if (!(mappings instanceof Collection<?> mappingList) || mappingList.isEmpty()) {
+            throw invalid("关联选择必须配置回填映射");
+        }
+
+        for (Object mapping : mappingList) {
+            if (!(mapping instanceof Map<?, ?> mappingMap)) {
+                throw invalid("关联选择回填映射非法");
+            }
+            String targetFieldKey = asNullableString(mappingMap.get("targetFieldKey"));
+            String currentFieldKey = asNullableString(mappingMap.get("currentFieldKey"));
+            if (targetFieldKey == null || currentFieldKey == null) {
+                throw invalid("关联选择回填映射不完整");
             }
         }
     }

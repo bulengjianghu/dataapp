@@ -1,6 +1,7 @@
 package com.dataapp.record.infrastructure.persistence.mapper;
 
 import com.dataapp.record.infrastructure.persistence.po.RecordPO;
+import com.dataapp.record.infrastructure.persistence.po.RecordDetailRowPO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -45,6 +46,14 @@ public interface RecordMapper {
         """)
     java.util.List<RecordPO> selectByFormId(Long formId);
 
+    @Select("""
+        select id, record_id, detail_table_key, row_no, row_data_json::text
+        from record_detail
+        where record_id = #{recordId} and deleted = false
+        order by detail_table_key asc, row_no asc
+        """)
+    java.util.List<RecordDetailRowPO> selectDetailRowsByRecordId(Long recordId);
+
     @Insert("""
         insert into record_main (id, tenant_id, form_id, form_version_id, status, created_by, updated_by)
         values (#{id}, 0, #{formId}, #{formVersionId}, #{status}, #{creatorId}, #{updatedBy})
@@ -83,6 +92,25 @@ public interface RecordMapper {
         @Param("draftDataJson") String draftDataJson,
         @Param("submittedDataJson") String submittedDataJson
     );
+
+    @Insert("""
+        insert into record_detail (id, tenant_id, record_id, detail_table_key, row_no, row_data_json)
+        values (#{id}, 0, #{recordId}, #{detailTableKey}, #{rowNo}, cast(#{rowDataJson} as jsonb))
+        """)
+    int insertDetailRow(
+        @Param("id") Long id,
+        @Param("recordId") Long recordId,
+        @Param("detailTableKey") String detailTableKey,
+        @Param("rowNo") Integer rowNo,
+        @Param("rowDataJson") String rowDataJson
+    );
+
+    @Update("""
+        update record_detail
+        set deleted = true
+        where record_id = #{recordId}
+        """)
+    int deleteDetailRowsByRecordId(@Param("recordId") Long recordId);
 
     @Insert("""
         insert into record_history (id, tenant_id, record_id, op_type, before_json, after_json, operated_by)

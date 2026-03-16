@@ -48,27 +48,64 @@ public class FormPublishedSchemaGatewayImpl implements PublishedFormSchemaGatewa
             Map<String, Object> nodes = objectMapper.readValue(fieldsJson, new TypeReference<LinkedHashMap<String, Object>>() {
             });
             List<RecordFieldSchema> fieldSchemas = new ArrayList<>();
+            Map<String, Map<String, Object>> normalizedNodes = new LinkedHashMap<>();
             for (Object rawNode : nodes.values()) {
-                if (!(rawNode instanceof Map<?, ?> nodeMap)) {
+                Map<String, Object> nodeMap = asNodeMap(rawNode);
+                if (nodeMap == null) {
                     continue;
                 }
-                if (!"field".equals(String.valueOf(nodeMap.get("type")))) {
-                    continue;
-                }
-                @SuppressWarnings("unchecked")
-                Map<String, Object> props = nodeMap.get("props") instanceof Map<?, ?> map
-                    ? (Map<String, Object>) map
-                    : Map.of();
+                normalizedNodes.put(stringValue(nodeMap.get("id")), nodeMap);
+            }
+
+            for (Map<String, Object> nodeMap : normalizedNodes.values()) {
+                String nodeType = stringValue(nodeMap.get("type"));
+                Map<String, Object> props = props(nodeMap);
                 String fieldKey = stringValue(nodeMap.get("serverId"));
                 if (fieldKey.isBlank()) {
                     continue;
                 }
+                if ("detail_table".equals(nodeType) || "detail-table".equals(stringValue(props.get("component")))) {
+                    fieldSchemas.add(RecordFieldSchema.detailTable(
+                        fieldKey,
+                        firstNonBlank(stringValue(props.get("title")), stringValue(props.get("label"))),
+                        integerValue(props.get("minRows")),
+                        integerValue(props.get("maxRows"))
+                    ));
+                    continue;
+                }
+                if (!"field".equals(nodeType)) {
+                    continue;
+                }
+
+                String parentId = stringValue(nodeMap.get("parentId"));
+                String detailTableKey = resolveDetailTableKey(normalizedNodes, parentId);
+                if (!detailTableKey.isBlank()) {
+                    fieldSchemas.add(new RecordFieldSchema(
+                        fieldKey,
+                        stringValue(props.get("label")),
+                        stringValue(props.get("component")),
+                        Boolean.TRUE.equals(props.get("required")),
+                        parseOptions(props.get("options")),
+                        "DETAIL",
+                        detailTableKey,
+                        null,
+                        null,
+                        null
+                    ));
+                    continue;
+                }
+
                 fieldSchemas.add(new RecordFieldSchema(
                     fieldKey,
                     stringValue(props.get("label")),
                     stringValue(props.get("component")),
                     Boolean.TRUE.equals(props.get("required")),
-                    parseOptions(props.get("options"))
+                    parseOptions(props.get("options")),
+                    "MAIN",
+                    null,
+                    null,
+                    null,
+                    longValue(props.get("sourceFormId"))
                 ));
             }
             return fieldSchemas;
@@ -91,5 +128,71 @@ public class FormPublishedSchemaGatewayImpl implements PublishedFormSchemaGatewa
 
     private String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asNodeMap(Object rawNode) {
+        if (!(rawNode instanceof Map<?, ?> nodeMap)) {
+            return null;
+        }
+        return (Map<String, Object>) nodeMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> props(Map<String, Object> nodeMap) {
+        return nodeMap.get("props") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    private Integer integerValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private Long longValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String resolveDetailTableKey(Map<String, Map<String, Object>> nodes, String parentId) {
+        if (parentId == null || parentId.isBlank()) {
+            return "";
+        }
+        Map<String, Object> parentNode = nodes.get(parentId);
+        if (parentNode == null) {
+            return "";
+        }
+        Map<String, Object> parentProps = props(parentNode);
+        if ("detail_table".equals(stringValue(parentNode.get("type"))) ||
+            "detail-table".equals(stringValue(parentProps.get("component")))) {
+            return stringValue(parentNode.get("serverId"));
+        }
+        return "";
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 }

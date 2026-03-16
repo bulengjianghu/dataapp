@@ -103,6 +103,13 @@ public interface FormDefinitionMapper {
         """)
     FormVersionPO selectCurrentVersionByFormCode(String formCode);
 
+    @Select("""
+        select id, form_id, version_no, fields_json::text as fields_json, published_by, published_at
+        from form_version
+        where id = #{versionId}
+        """)
+    FormVersionPO selectVersionById(Long versionId);
+
     @Delete("delete from form_field where form_id = #{formId}")
     int deleteDraftFieldsByFormId(Long formId);
 

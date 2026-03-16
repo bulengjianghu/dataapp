@@ -6,7 +6,7 @@ public interface RecordRepository {
 
     Record findById(Long id);
 
-    void save(Record record, String dataJson);
+    java.util.List<Record> findByFormId(Long formId);
 
-    void updateStatus(Long id, String status);
+    void save(Record record);
 }

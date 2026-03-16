@@ -7,7 +7,11 @@ public class RecordPO {
     private Long id;
     private Long formId;
     private Long formVersionId;
+    private Long creatorId;
+    private Long updatedBy;
     private String status;
+    private String draftDataJson;
+    private String submittedDataJson;
     private OffsetDateTime createdAt;
 
     public Long getId() {
@@ -34,12 +38,44 @@ public class RecordPO {
         this.formVersionId = formVersionId;
     }
 
+    public Long getCreatorId() {
+        return creatorId;
+    }
+
+    public void setCreatorId(Long creatorId) {
+        this.creatorId = creatorId;
+    }
+
+    public Long getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(Long updatedBy) {
+        this.updatedBy = updatedBy;
+    }
+
     public String getStatus() {
         return status;
     }
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getDraftDataJson() {
+        return draftDataJson;
+    }
+
+    public void setDraftDataJson(String draftDataJson) {
+        this.draftDataJson = draftDataJson;
+    }
+
+    public String getSubmittedDataJson() {
+        return submittedDataJson;
+    }
+
+    public void setSubmittedDataJson(String submittedDataJson) {
+        this.submittedDataJson = submittedDataJson;
     }
 
     public OffsetDateTime getCreatedAt() {

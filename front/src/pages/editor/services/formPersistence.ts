@@ -1,10 +1,5 @@
 import { PAGE_NODE_ID, createEmptyNodesById, type Node, type NodesById } from "../../../types/schema/node";
-
-type ApiResult<T> = {
-  code: string;
-  message: string;
-  data: T;
-};
+import { request } from "../../../services/api";
 
 type CreateFormResponse = {
   formId: number;
@@ -140,22 +135,6 @@ function deserializeDraft(response: DraftResponse | PublishResponse): PersistedD
     formId: String(response.formId),
     nodesById,
   };
-}
-
-async function request<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
-
-  const payload = (await response.json()) as ApiResult<T>;
-  if (!response.ok || payload.code !== "SUCCESS") {
-    throw new Error(payload.message || "请求失败");
-  }
-  return payload.data;
 }
 
 async function createForm(name: string) {

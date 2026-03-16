@@ -1,3 +1,5 @@
+import { request } from "../../../services/api";
+
 type ApiResult<T> = {
   code: string;
   message: string;
@@ -27,22 +29,6 @@ type DraftFormSummaryResponse = {
 type CreateFormResponse = {
   formId: number;
 };
-
-async function request<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
-
-  const payload = (await response.json()) as ApiResult<T>;
-  if (!response.ok || payload.code !== "SUCCESS") {
-    throw new Error(payload.message || "请求失败");
-  }
-  return payload.data;
-}
 
 export async function listDraftFormsOnServer(): Promise<DraftFormSummary[]> {
   const items = await request<DraftFormSummaryResponse[]>("/api/admin/forms");

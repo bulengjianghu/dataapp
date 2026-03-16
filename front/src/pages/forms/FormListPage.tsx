@@ -70,7 +70,9 @@ export function FormListPage() {
       key: "name",
       render: (_, record) => (
         <Space direction="vertical" size={2}>
-          <Typography.Link onClick={() => navigate(`/editor?formId=${record.formId}`)}>{record.name}</Typography.Link>
+          <Typography.Link onClick={() => navigate(`/records?formId=${record.formId}&formCode=${record.formCode}`)}>
+            {record.name}
+          </Typography.Link>
           <Typography.Text type="secondary">{record.formCode}</Typography.Text>
         </Space>
       ),
@@ -131,8 +133,7 @@ export function FormListPage() {
       {contextHolder}
       <header className="form-list-page__header">
         <div>
-          <Typography.Title level={3}>表单草稿</Typography.Title>
-          <Typography.Text type="secondary">查看当前已保存的草稿，并继续编辑或删除。</Typography.Text>
+          <Typography.Title level={3}>表单列表</Typography.Title>
         </div>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={() => void loadForms()}>

@@ -19,6 +19,8 @@ public interface FormDefinitionRepository {
 
     FormVersion findCurrentVersionByFormCode(String formCode);
 
+    FormVersion findVersionById(Long versionId);
+
     void save(FormDefinition formDefinition);
 
     void update(FormDefinition formDefinition);

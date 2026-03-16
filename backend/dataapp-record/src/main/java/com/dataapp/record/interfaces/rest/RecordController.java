@@ -4,14 +4,22 @@ import com.dataapp.record.application.service.RecordCommandAppService;
 import com.dataapp.record.application.service.RecordQueryAppService;
 import com.dataapp.record.interfaces.dto.RecordCreateRequest;
 import com.dataapp.record.interfaces.dto.RecordDetailResponse;
+import com.dataapp.record.interfaces.dto.RecordDraftSaveRequest;
+import com.dataapp.record.interfaces.dto.RecordListItemResponse;
+import com.dataapp.record.interfaces.dto.RecordSubmitRequest;
 import com.dataapp.shared.kernel.response.Result;
+import com.dataapp.shared.security.CurrentUser;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/records")
@@ -29,17 +37,51 @@ public class RecordController {
     }
 
     @PostMapping
-    public Result<String> create(@Valid @RequestBody RecordCreateRequest request) {
-        return Result.success(recordCommandAppService.create(request.formId(), request.formVersionId(), request.dataJson()));
+    public Result<Long> create(
+        @AuthenticationPrincipal CurrentUser currentUser,
+        @Valid @RequestBody RecordCreateRequest request
+    ) {
+        return Result.success(recordCommandAppService.create(
+            currentUser,
+            request.formId(),
+            request.formVersionId(),
+            request.data()
+        ));
+    }
+
+    @PutMapping("/{recordId}/draft")
+    public Result<Boolean> saveDraft(
+        @AuthenticationPrincipal CurrentUser currentUser,
+        @PathVariable("recordId") Long recordId,
+        @Valid @RequestBody RecordDraftSaveRequest request
+    ) {
+        recordCommandAppService.saveDraft(currentUser, recordId, request.data());
+        return Result.success(Boolean.TRUE);
     }
 
     @PostMapping("/{recordId}/submit")
-    public Result<String> submit(@PathVariable("recordId") Long recordId) {
-        return Result.success(recordCommandAppService.submit(recordId));
+    public Result<Boolean> submit(
+        @AuthenticationPrincipal CurrentUser currentUser,
+        @PathVariable("recordId") Long recordId,
+        @Valid @RequestBody RecordSubmitRequest request
+    ) {
+        recordCommandAppService.submit(currentUser, recordId, request.data());
+        return Result.success(Boolean.TRUE);
     }
 
     @GetMapping("/{recordId}")
-    public Result<RecordDetailResponse> detail(@PathVariable("recordId") Long recordId) {
-        return Result.success(recordQueryAppService.getById(recordId));
+    public Result<RecordDetailResponse> detail(
+        @AuthenticationPrincipal CurrentUser currentUser,
+        @PathVariable("recordId") Long recordId
+    ) {
+        return Result.success(recordQueryAppService.getById(currentUser, recordId));
+    }
+
+    @GetMapping("/by-form/{formId}")
+    public Result<List<RecordListItemResponse>> listByForm(
+        @AuthenticationPrincipal CurrentUser currentUser,
+        @PathVariable("formId") Long formId
+    ) {
+        return Result.success(recordQueryAppService.listByFormId(currentUser, formId));
     }
 }

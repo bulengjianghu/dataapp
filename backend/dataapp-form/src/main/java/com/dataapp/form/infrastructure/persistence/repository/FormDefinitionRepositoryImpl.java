@@ -66,6 +66,19 @@ public class FormDefinitionRepositoryImpl implements FormDefinitionRepository {
     }
 
     @Override
+    public FormVersion findVersionById(Long versionId) {
+        var po = formDefinitionMapper.selectVersionById(versionId);
+        return po == null ? null : new FormVersion(
+            po.getId(),
+            po.getFormId(),
+            po.getVersionNo(),
+            po.getFieldsJson(),
+            po.getPublishedBy(),
+            po.getPublishedAt()
+        );
+    }
+
+    @Override
     public void save(FormDefinition formDefinition) {
         FormDefinitionPO po = new FormDefinitionPO();
         po.setId(formDefinition.getId());

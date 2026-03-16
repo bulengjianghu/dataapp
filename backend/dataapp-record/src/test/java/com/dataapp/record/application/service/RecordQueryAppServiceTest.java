@@ -1,15 +1,20 @@
 package com.dataapp.record.application.service;
 
 import com.dataapp.record.domain.model.aggregate.Record;
-import com.dataapp.record.domain.repository.RecordRepository;
+import com.dataapp.record.interfaces.dto.RecordListItemResponse;
 import com.dataapp.record.interfaces.dto.RecordDetailResponse;
+import com.dataapp.record.domain.repository.RecordRepository;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
+import com.dataapp.shared.security.CurrentUser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,6 +23,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class RecordQueryAppServiceTest {
 
+    private static final CurrentUser NORMAL_USER = new CurrentUser(101L, "alice", List.of("FORM_USER"));
+    private static final CurrentUser ADMIN_USER = new CurrentUser(1L, "admin", List.of("SUPER_ADMIN"));
+
     @Mock
     private RecordRepository recordRepository;
 
@@ -25,24 +33,76 @@ class RecordQueryAppServiceTest {
     private RecordQueryAppService recordQueryAppService;
 
     @Test
-    void shouldReturnRecordDetailWhenRecordExists() {
-        when(recordRepository.findById(21L)).thenReturn(new Record(21L, 100L, 1L, "DRAFT"));
+    void shouldReturnRecordDetailWhenOwnerQueriesRecord() {
+        when(recordRepository.findById(21L)).thenReturn(
+            Record.create(21L, 100L, 1L, 101L, Map.of("fld_name", "张三"))
+        );
 
-        RecordDetailResponse response = recordQueryAppService.getById(21L);
+        RecordDetailResponse response = recordQueryAppService.getById(NORMAL_USER, 21L);
 
         assertThat(response.id()).isEqualTo(21L);
         assertThat(response.formId()).isEqualTo(100L);
         assertThat(response.formVersionId()).isEqualTo(1L);
         assertThat(response.status()).isEqualTo("DRAFT");
+        assertThat(response.data()).containsEntry("fld_name", "张三");
+    }
+
+    @Test
+    void shouldAllowAdminToViewAnyRecord() {
+        when(recordRepository.findById(22L)).thenReturn(
+            Record.create(22L, 100L, 1L, 202L, Map.of("fld_name", "李四"))
+        );
+
+        RecordDetailResponse response = recordQueryAppService.getById(ADMIN_USER, 22L);
+
+        assertThat(response.data()).containsEntry("fld_name", "李四");
+    }
+
+    @Test
+    void shouldThrowBizExceptionWhenUserCannotViewRecord() {
+        when(recordRepository.findById(23L)).thenReturn(
+            Record.create(23L, 100L, 1L, 202L, Map.of("fld_name", "李四"))
+        );
+
+        assertThatThrownBy(() -> recordQueryAppService.getById(NORMAL_USER, 23L))
+            .isInstanceOf(BizException.class)
+            .extracting("code")
+            .isEqualTo(ErrorCode.UNAUTHORIZED);
     }
 
     @Test
     void shouldThrowBizExceptionWhenRecordDoesNotExist() {
-        when(recordRepository.findById(22L)).thenReturn(null);
+        when(recordRepository.findById(24L)).thenReturn(null);
 
-        assertThatThrownBy(() -> recordQueryAppService.getById(22L))
+        assertThatThrownBy(() -> recordQueryAppService.getById(NORMAL_USER, 24L))
             .isInstanceOf(BizException.class)
             .extracting("code")
             .isEqualTo(ErrorCode.RECORD_NOT_FOUND);
+    }
+
+    @Test
+    void shouldListOnlyCurrentUsersRecordsForNormalUser() {
+        when(recordRepository.findByFormId(100L)).thenReturn(List.of(
+            Record.create(31L, 100L, 1L, 101L, Map.of("fld_name", "张三")),
+            Record.create(32L, 100L, 1L, 202L, Map.of("fld_name", "李四"))
+        ));
+
+        List<RecordListItemResponse> responses = recordQueryAppService.listByFormId(NORMAL_USER, 100L);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().id()).isEqualTo(31L);
+    }
+
+    @Test
+    void shouldListAllRecordsForAdmin() {
+        when(recordRepository.findByFormId(100L)).thenReturn(List.of(
+            Record.create(31L, 100L, 1L, 101L, Map.of("fld_name", "张三")),
+            Record.create(32L, 100L, 1L, 202L, Map.of("fld_name", "李四")).submit(Map.of("fld_name", "李四"), 202L)
+        ));
+
+        List<RecordListItemResponse> responses = recordQueryAppService.listByFormId(ADMIN_USER, 100L);
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(1).status()).isEqualTo("SUBMITTED");
     }
 }

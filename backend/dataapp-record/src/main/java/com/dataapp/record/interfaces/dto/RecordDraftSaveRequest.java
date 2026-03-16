@@ -4,9 +4,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.Map;
 
-public record RecordCreateRequest(
-    @NotNull Long formId,
-    @NotNull Long formVersionId,
+public record RecordDraftSaveRequest(
     @NotNull Map<String, Object> data
 ) {
 }

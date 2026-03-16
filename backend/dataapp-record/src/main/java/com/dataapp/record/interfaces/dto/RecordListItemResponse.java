@@ -1,12 +1,10 @@
 package com.dataapp.record.interfaces.dto;
 
-import java.util.Map;
-
-public record RecordDetailResponse(
+public record RecordListItemResponse(
     Long id,
     Long formId,
     Long formVersionId,
     String status,
-    Map<String, Object> data
+    Long creatorId
 ) {
 }

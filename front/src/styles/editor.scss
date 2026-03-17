@@ -891,6 +891,36 @@
   background: transparent;
 }
 
+.editor-container__description {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.editor-palette__tile--detail-table .editor-palette__preview {
+  background: linear-gradient(160deg, rgba(8, 145, 178, 0.18), rgba(34, 211, 238, 0.12));
+}
+
+.editor-palette__tile--detail-table .editor-palette__preview-badge {
+  color: #0f766e;
+}
+
+.editor-palette__tile--relation-select .editor-palette__preview {
+  background: linear-gradient(160deg, rgba(37, 99, 235, 0.16), rgba(96, 165, 250, 0.12));
+}
+
+.editor-palette__tile--relation-select .editor-palette__preview-badge {
+  color: #1d4ed8;
+}
+
+.relation-select__item {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.relation-select__item.is-active {
+  background: rgba(37, 99, 235, 0.08);
+}
+
 .app-layout {
   min-height: 100vh;
   background: #f5f7fb;

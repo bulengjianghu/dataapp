@@ -1,8 +1,9 @@
 import { ArrowLeftOutlined, FileAddOutlined, PrinterOutlined, ReloadOutlined, SaveOutlined, SendOutlined } from "@ant-design/icons";
-import { Button, Card, Drawer, Empty, Flex, Popconfirm, Space, Spin, Table, Tag, Typography, message } from "antd";
+import { Button, Card, Drawer, Empty, Flex, Input, List, Modal, Popconfirm, Space, Spin, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import type { Node } from "../../types/schema/node";
 import { RecordFormCanvas } from "../fill/components/RecordFormCanvas";
 import {
   createRecord,
@@ -10,12 +11,41 @@ import {
   loadRecordDetail,
   loadRuntimeForm,
   saveRecordDraft,
+  searchRelationRecords,
   submitRecord,
   type RecordListItem,
+  type RecordRuntimeData,
+  type RelationRecord,
   type RuntimeForm,
 } from "../fill/services/recordRuntime";
 
 type DrawerMode = "create" | "edit" | "view";
+type RelationDialogContext = {
+  node: Node;
+  detailTableKey?: string;
+  rowIndex?: number;
+};
+
+function createEmptyRuntimeData(): RecordRuntimeData {
+  return {
+    mainData: {},
+    detailTables: {},
+  };
+}
+
+function getFieldKey(node: Node) {
+  return typeof node.serverId === "string" ? node.serverId : "";
+}
+
+function buildDefaultDetailRow(columnNodes: Node[]) {
+  return columnNodes.reduce<Record<string, unknown>>((result, columnNode) => {
+    const fieldKey = getFieldKey(columnNode);
+    if (fieldKey) {
+      result[fieldKey] = undefined;
+    }
+    return result;
+  }, {});
+}
 
 export function RecordListPage() {
   const navigate = useNavigate();
@@ -27,10 +57,17 @@ export function RecordListPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [drawerRecordId, setDrawerRecordId] = useState<number | null>(null);
-  const [drawerData, setDrawerData] = useState<Record<string, unknown>>({});
+  const [drawerData, setDrawerData] = useState<RecordRuntimeData>(createEmptyRuntimeData());
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [relationDialogOpen, setRelationDialogOpen] = useState(false);
+  const [relationDialogContext, setRelationDialogContext] = useState<RelationDialogContext | null>(null);
+  const [relationKeyword, setRelationKeyword] = useState("");
+  const [relationLoading, setRelationLoading] = useState(false);
+  const [relationRecords, setRelationRecords] = useState<RelationRecord[]>([]);
+  const [selectedRelationRecordId, setSelectedRelationRecordId] = useState<number | null>(null);
+  const [relationEmptyHint, setRelationEmptyHint] = useState("暂无可选关联记录");
 
   const formId = searchParams.get("formId");
   const formCode = searchParams.get("formCode");
@@ -71,7 +108,7 @@ export function RecordListPage() {
   const openCreateDrawer = () => {
     setDrawerMode("create");
     setDrawerRecordId(null);
-    setDrawerData({});
+    setDrawerData(createEmptyRuntimeData());
     setDrawerOpen(true);
   };
 
@@ -82,7 +119,10 @@ export function RecordListPage() {
     setDrawerOpen(true);
     try {
       const detail = await loadRecordDetail(recordId);
-      setDrawerData(detail.data ?? {});
+      setDrawerData({
+        mainData: detail.mainData ?? {},
+        detailTables: detail.detailTables ?? {},
+      });
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "加载记录详情失败");
       setDrawerOpen(false);
@@ -97,23 +137,80 @@ export function RecordListPage() {
     }
     setDrawerOpen(false);
     setDrawerRecordId(null);
-    setDrawerData({});
+    setDrawerData(createEmptyRuntimeData());
     setDrawerMode("create");
+    setRelationDialogOpen(false);
+    setRelationDialogContext(null);
+    setRelationEmptyHint("暂无可选关联记录");
   };
 
-  const handleValueChange = (fieldKey: string, value: unknown) => {
+  const handleMainValueChange = (fieldKey: string, value: unknown) => {
     if (readonly) {
       return;
     }
     setDrawerData((current) => {
+      const nextMainData = { ...current.mainData };
       if (value === undefined || value === null || value === "") {
-        const next = { ...current };
-        delete next[fieldKey];
-        return next;
+        delete nextMainData[fieldKey];
+      } else {
+        nextMainData[fieldKey] = value;
       }
       return {
         ...current,
-        [fieldKey]: value,
+        mainData: nextMainData,
+      };
+    });
+  };
+
+  const handleAddDetailRow = (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => {
+    if (readonly) {
+      return;
+    }
+    setDrawerData((current) => {
+      const existingRows = current.detailTables[detailTableKey] ?? [];
+      const rowsToAppend = Array.from({ length: Math.max(defaultRowCount, 1) }, () => buildDefaultDetailRow(columnNodes));
+      return {
+        ...current,
+        detailTables: {
+          ...current.detailTables,
+          [detailTableKey]: [...existingRows, ...rowsToAppend],
+        },
+      };
+    });
+  };
+
+  const handleRemoveDetailRow = (detailTableKey: string, rowIndex: number) => {
+    if (readonly) {
+      return;
+    }
+    setDrawerData((current) => ({
+      ...current,
+      detailTables: {
+        ...current.detailTables,
+        [detailTableKey]: (current.detailTables[detailTableKey] ?? []).filter((_, index) => index !== rowIndex),
+      },
+    }));
+  };
+
+  const handleDetailValueChange = (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => {
+    if (readonly) {
+      return;
+    }
+    setDrawerData((current) => {
+      const rows = [...(current.detailTables[detailTableKey] ?? [])];
+      const row = { ...(rows[rowIndex] ?? {}) };
+      if (value === undefined || value === null || value === "") {
+        delete row[fieldKey];
+      } else {
+        row[fieldKey] = value;
+      }
+      rows[rowIndex] = row;
+      return {
+        ...current,
+        detailTables: {
+          ...current.detailTables,
+          [detailTableKey]: rows,
+        },
       };
     });
   };
@@ -159,6 +256,127 @@ export function RecordListPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const loadRelationRecords = async (context: RelationDialogContext, keyword = "") => {
+    const sourceFormId = Number(context.node.props.sourceFormId);
+    if (!sourceFormId) {
+      messageApi.warning("请先在编辑器中为关联选择组件配置来源表单");
+      return;
+    }
+    setRelationLoading(true);
+    try {
+      const displayFields = Array.isArray(context.node.props.displayFields)
+        ? context.node.props.displayFields.filter((item): item is string => typeof item === "string")
+        : [];
+      const filters = Array.isArray(context.node.props.filters)
+        ? context.node.props.filters.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+        : [];
+      const result = await searchRelationRecords({
+        sourceFormId,
+        keyword,
+        displayFields,
+        filters,
+      });
+      setRelationRecords(result.records);
+      setSelectedRelationRecordId(result.records[0]?.id ?? null);
+      if (result.records.length === 0 && result.totalCount > 0) {
+        const reasons: string[] = [];
+        if (keyword.trim()) {
+          reasons.push(`关键字“${keyword.trim()}”`);
+        }
+        if (filters.length > 0) {
+          reasons.push(`${filters.length} 条筛选条件`);
+        }
+        setRelationEmptyHint(
+          reasons.length > 0
+            ? `来源表单共有 ${result.totalCount} 条记录，但被${reasons.join("和")}过滤后暂无匹配结果`
+            : "暂无可选关联记录"
+        );
+      } else {
+        setRelationEmptyHint("暂无可选关联记录");
+      }
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "加载关联记录失败");
+    } finally {
+      setRelationLoading(false);
+    }
+  };
+
+  const openRelationDialog = (node: Node, detailTableKey?: string, rowIndex?: number) => {
+    const context = { node, detailTableKey, rowIndex };
+    setRelationDialogContext(context);
+    setRelationDialogOpen(true);
+    setRelationKeyword("");
+    void loadRelationRecords(context, "");
+  };
+
+  const closeRelationDialog = () => {
+    setRelationDialogOpen(false);
+    setRelationDialogContext(null);
+    setRelationKeyword("");
+    setRelationRecords([]);
+    setSelectedRelationRecordId(null);
+    setRelationEmptyHint("暂无可选关联记录");
+  };
+
+  const handleConfirmRelationRecord = () => {
+    if (!relationDialogContext || selectedRelationRecordId == null) {
+      return;
+    }
+
+    const selectedRecord = relationRecords.find((record) => record.id === selectedRelationRecordId);
+    if (!selectedRecord) {
+      return;
+    }
+
+    const fieldKey = getFieldKey(relationDialogContext.node);
+    const mappings = Array.isArray(relationDialogContext.node.props.mappings)
+      ? relationDialogContext.node.props.mappings.filter((item): item is { targetFieldKey?: unknown; currentFieldKey?: unknown } => typeof item === "object" && item !== null)
+      : [];
+
+    if (relationDialogContext.detailTableKey && typeof relationDialogContext.rowIndex === "number") {
+      setDrawerData((current) => {
+        const rows = [...(current.detailTables[relationDialogContext.detailTableKey!] ?? [])];
+        const row = { ...(rows[relationDialogContext.rowIndex!] ?? {}) };
+        row[fieldKey] = selectedRecord.id;
+        mappings.forEach((mapping) => {
+          const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
+          const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
+          if (targetFieldKey && currentFieldKey) {
+            row[currentFieldKey] = selectedRecord.mainData[targetFieldKey];
+          }
+        });
+        rows[relationDialogContext.rowIndex!] = row;
+        return {
+          ...current,
+          detailTables: {
+            ...current.detailTables,
+            [relationDialogContext.detailTableKey!]: rows,
+          },
+        };
+      });
+    } else {
+      setDrawerData((current) => {
+        const nextMainData = {
+          ...current.mainData,
+          [fieldKey]: selectedRecord.id,
+        };
+        mappings.forEach((mapping) => {
+          const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
+          const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
+          if (targetFieldKey && currentFieldKey) {
+            nextMainData[currentFieldKey] = selectedRecord.mainData[targetFieldKey];
+          }
+        });
+        return {
+          ...current,
+          mainData: nextMainData,
+        };
+      });
+    }
+
+    closeRelationDialog();
   };
 
   const columns: ColumnsType<RecordListItem> = [
@@ -240,7 +458,7 @@ export function RecordListPage() {
 
       <Drawer
         destroyOnClose
-        width={920}
+        width={1000}
         open={drawerOpen}
         onClose={closeDrawer}
         title={drawerMode === "create" ? "新增填报" : drawerMode === "edit" ? "填写记录" : "记录详情"}
@@ -279,12 +497,70 @@ export function RecordListPage() {
                 pageChildren={pageChildren}
                 data={drawerData}
                 readonly={readonly}
-                onValueChange={handleValueChange}
+                onMainValueChange={handleMainValueChange}
+                onAddDetailRow={handleAddDetailRow}
+                onRemoveDetailRow={handleRemoveDetailRow}
+                onDetailValueChange={handleDetailValueChange}
+                onOpenRelationSelect={openRelationDialog}
               />
             </Flex>
           </Card>
         )}
       </Drawer>
+
+      <Modal
+        title="关联选择"
+        open={relationDialogOpen}
+        onCancel={closeRelationDialog}
+        onOk={handleConfirmRelationRecord}
+        okButtonProps={{ disabled: selectedRelationRecordId == null }}
+        width={760}
+        destroyOnClose
+      >
+        <Flex vertical gap={16}>
+          <Input.Search
+            placeholder="输入关键字搜索关联记录"
+            value={relationKeyword}
+            onChange={(event) => setRelationKeyword(event.target.value)}
+            onSearch={(value) => {
+              setRelationKeyword(value);
+              if (relationDialogContext) {
+                void loadRelationRecords(relationDialogContext, value);
+              }
+            }}
+          />
+          {relationLoading ? (
+            <div className="fill-page-shell__loading fill-page-shell__loading--drawer">
+              <Spin />
+            </div>
+          ) : relationRecords.length === 0 ? (
+            <Empty description={relationEmptyHint} />
+          ) : (
+            <List
+              bordered
+              dataSource={relationRecords}
+              renderItem={(record) => (
+                <List.Item
+                  onClick={() => setSelectedRelationRecordId(record.id)}
+                  className={record.id === selectedRelationRecordId ? "relation-select__item is-active" : "relation-select__item"}
+                  extra={<Tag color={record.status === "SUBMITTED" ? "green" : "gold"}>{record.status}</Tag>}
+                >
+                  <Flex vertical gap={4}>
+                    <Typography.Text strong>记录 #{record.id}</Typography.Text>
+                    <Typography.Text type="secondary">
+                      {relationDialogContext && Array.isArray(relationDialogContext.node.props.displayFields) && relationDialogContext.node.props.displayFields.length > 0
+                        ? (relationDialogContext.node.props.displayFields as string[])
+                            .map((fieldKey) => `${fieldKey}: ${String(record.mainData[fieldKey] ?? "-")}`)
+                            .join(" | ")
+                        : JSON.stringify(record.mainData)}
+                    </Typography.Text>
+                  </Flex>
+                </List.Item>
+              )}
+            />
+          )}
+        </Flex>
+      </Modal>
     </div>
   );
 }

@@ -198,6 +198,21 @@ export function validateBeforePublish(nodesById: NodesById, pageRootId: string) 
   }
 
   Object.values(nodesById).forEach((node) => {
+    if (node.type === "detail_table") {
+      const title = typeof node.props.title === "string" ? node.props.title.trim() : "";
+      if (!title) {
+        errors.push(`明细表 ${node.id} 缺少标题`);
+      }
+      if (node.childrenIds.length === 0) {
+        errors.push(`明细表 ${title || node.id} 至少需要一个列字段`);
+      }
+      const minRows = typeof node.props.minRows === "number" ? node.props.minRows : 0;
+      const maxRows = typeof node.props.maxRows === "number" ? node.props.maxRows : 0;
+      if (maxRows > 0 && minRows > maxRows) {
+        errors.push(`明细表 ${title || node.id} 的最小行数不能大于最大行数`);
+      }
+    }
+
     if (node.type === "field") {
       const label = typeof node.props.label === "string" ? node.props.label.trim() : "";
       if (!label) {
@@ -209,6 +224,16 @@ export function validateBeforePublish(nodesById: NodesById, pageRootId: string) 
         const options = node.props.options;
         if (!Array.isArray(options) || options.length === 0) {
           errors.push(`字段 ${label || node.id} 需要至少一个选项`);
+        }
+      }
+
+      if (component === "relation-select") {
+        const sourceFormId = typeof node.props.sourceFormId === "string" ? node.props.sourceFormId.trim() : "";
+        if (!sourceFormId) {
+          errors.push(`关联选择 ${label || node.id} 需要配置来源表单`);
+        }
+        if (!Array.isArray(node.props.mappings) || node.props.mappings.length === 0) {
+          errors.push(`关联选择 ${label || node.id} 需要至少一个回填映射`);
         }
       }
     }

@@ -5,6 +5,7 @@ import com.dataapp.record.domain.model.service.RecordAccessPolicy;
 import com.dataapp.record.domain.repository.RecordRepository;
 import com.dataapp.record.interfaces.dto.RecordDetailResponse;
 import com.dataapp.record.interfaces.dto.RecordListItemResponse;
+import com.dataapp.record.interfaces.dto.RelationRecordOptionResponse;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.dataapp.shared.security.CurrentUser;
@@ -48,6 +49,22 @@ public class RecordQueryAppService {
                 record.getFormVersionId(),
                 record.getStatus(),
                 record.getCreatorId()
+            ))
+            .toList();
+    }
+
+    public List<RelationRecordOptionResponse> listRelationOptionsByFormId(CurrentUser currentUser, Long formId) {
+        if (currentUser == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录后再继续");
+        }
+        return recordRepository.findByFormId(formId).stream()
+            .map(record -> new RelationRecordOptionResponse(
+                record.getId(),
+                record.getFormId(),
+                record.getFormVersionId(),
+                record.getStatus(),
+                record.readableData().mainData(),
+                record.readableData().detailTables()
             ))
             .toList();
     }

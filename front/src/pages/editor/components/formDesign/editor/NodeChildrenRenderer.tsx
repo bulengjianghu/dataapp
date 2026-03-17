@@ -53,7 +53,7 @@ export function NodeChildrenRenderer({
           over.data.current.nodeId === childId &&
           showInsertMarkers;
 
-        if (node.type !== "container") {
+        if (node.type !== "container" && node.type !== "detail_table") {
           return (
             <div
               key={childId}

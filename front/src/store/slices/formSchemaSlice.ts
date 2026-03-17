@@ -42,6 +42,18 @@ function createNode(type: NodeType, props?: Record<string, unknown>, layout?: No
   };
 }
 
+function canAcceptChild(parent: Node, child: Pick<Node, "type">) {
+  if (parent.type === "page" || parent.type === "container") {
+    return child.type !== "page";
+  }
+
+  if (parent.type === "detail_table") {
+    return child.type === "field";
+  }
+
+  return false;
+}
+
 function normalizeInsertIndex(length: number, index?: number): number {
   if (index === undefined) {
     return length;
@@ -108,11 +120,10 @@ const formSchemaSlice = createSlice({
       if (!parent) {
         return;
       }
-      if (parent.type !== "page" && parent.type !== "container") {
+      const node = createNode(type, props, layout);
+      if (!canAcceptChild(parent, node)) {
         return;
       }
-
-      const node = createNode(type, props, layout);
       node.parentId = targetParentId;
       state.nodesById[node.id] = node;
 
@@ -131,10 +142,13 @@ const formSchemaSlice = createSlice({
       if (!node || !targetParent) {
         return;
       }
-      if (targetParent.type !== "page" && targetParent.type !== "container") {
+      if (!canAcceptChild(targetParent, node)) {
         return;
       }
       if (node.type === "container" && isDescendant(state.nodesById, nodeId, targetParentId)) {
+        return;
+      }
+      if (node.type === "detail_table" && isDescendant(state.nodesById, nodeId, targetParentId)) {
         return;
       }
 
@@ -195,7 +209,7 @@ const formSchemaSlice = createSlice({
     moveNodeToContainer(state, action: PayloadAction<{ nodeId: string; containerId: string; index?: number }>) {
       const { nodeId, containerId, index } = action.payload;
       const container = state.nodesById[containerId];
-      if (!container || container.type !== "container") {
+      if (!container || (container.type !== "container" && container.type !== "detail_table")) {
         return;
       }
       formSchemaSlice.caseReducers.moveNode(state, {

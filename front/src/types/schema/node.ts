@@ -1,6 +1,6 @@
 export const PAGE_NODE_ID = "page_root" as const;
 
-export type NodeType = "page" | "container" | "field" | "text";
+export type NodeType = "page" | "container" | "detail_table" | "field" | "text";
 
 export type Node = {
   id: string;

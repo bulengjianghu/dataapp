@@ -6,9 +6,11 @@ import {
   FileAddOutlined,
   FieldNumberOutlined,
   FontSizeOutlined,
+  LinkOutlined,
   MenuOutlined,
   MoreOutlined,
   PictureOutlined,
+  TableOutlined,
 } from "@ant-design/icons";
 import type { HTMLAttributes, ReactNode } from "react";
 import { Card, Flex, Tabs, Typography } from "antd";
@@ -17,7 +19,7 @@ import { selectFormId } from "../../../../store/selectors/editorSelectors";
 import { markDirty } from "../../../../store/slices/formSchemaSlice";
 import { ComponentOutlineTree } from "./ComponentOutlineTree";
 
-export type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口";
+export type PaletteCategory = "基础字段" | "选项字段" | "附件" | "容器入口" | "关联组件";
 
 export type PaletteItem = {
   key: string;
@@ -37,9 +39,11 @@ export const paletteItems: PaletteItem[] = [
   { key: "select", label: "下拉", category: "选项字段", icon: <MoreOutlined />, accent: "#4f46e5" },
   { key: "upload", label: "附件上传", category: "附件", icon: <FileAddOutlined />, accent: "#dc2626" },
   { key: "container", label: "分组容器", category: "容器入口", icon: <ContainerOutlined />, accent: "#1d4ed8" },
+  { key: "detail-table", label: "明细表", category: "容器入口", icon: <TableOutlined />, accent: "#0891b2" },
+  { key: "relation-select", label: "关联选择", category: "关联组件", icon: <LinkOutlined />, accent: "#2563eb" },
 ];
 
-const categories: PaletteCategory[] = ["基础字段", "选项字段", "附件", "容器入口"];
+const categories: PaletteCategory[] = ["基础字段", "选项字段", "附件", "容器入口", "关联组件"];
 
 export function PaletteTile({
   item,

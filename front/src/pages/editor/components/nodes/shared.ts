@@ -63,5 +63,14 @@ export function normalizeOptions(value: unknown): Array<{ label: string; value: 
 }
 
 export function resolveNodeComponentKey(node: { type: string; props: Record<string, unknown> }): string {
-  return typeof node.props.component === "string" ? node.props.component : node.type === "container" ? "container" : "";
+  if (typeof node.props.component === "string") {
+    return node.props.component;
+  }
+  if (node.type === "container") {
+    return "container";
+  }
+  if (node.type === "detail_table") {
+    return "detail-table";
+  }
+  return "";
 }

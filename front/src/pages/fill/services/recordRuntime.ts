@@ -11,12 +11,18 @@ export type RuntimeFormResponse = {
   fields: Record<string, unknown>;
 };
 
+export type RecordRuntimeData = {
+  mainData: Record<string, unknown>;
+  detailTables: Record<string, Array<Record<string, unknown>>>;
+};
+
 export type RecordDetailResponse = {
   id: number;
   formId: number;
   formVersionId: number;
   status: string;
-  data: Record<string, unknown>;
+  mainData: Record<string, unknown>;
+  detailTables: Record<string, Array<Record<string, unknown>>>;
 };
 
 export type RecordListItem = {
@@ -74,28 +80,49 @@ export async function loadRuntimeForm(formCode: string) {
   return deserializeFields(response);
 }
 
-export async function createRecord(formId: number, formVersionId: number, data: Record<string, unknown>) {
+export type RelationRecord = {
+  id: number;
+  formId: number;
+  formVersionId: number;
+  status: string;
+  mainData: Record<string, unknown>;
+  detailTables: Record<string, Array<Record<string, unknown>>>;
+};
+
+export type RelationSearchResult = {
+  totalCount: number;
+  records: RelationRecord[];
+};
+
+function toRuntimePayload(data: RecordRuntimeData) {
+  return {
+    mainData: data.mainData ?? {},
+    detailTables: data.detailTables ?? {},
+  };
+}
+
+export async function createRecord(formId: number, formVersionId: number, data: RecordRuntimeData) {
   return request<number>("/api/records", {
     method: "POST",
     body: JSON.stringify({
       formId,
       formVersionId,
-      data,
+      ...toRuntimePayload(data),
     }),
   });
 }
 
-export async function saveRecordDraft(recordId: number, data: Record<string, unknown>) {
+export async function saveRecordDraft(recordId: number, data: RecordRuntimeData) {
   return request<boolean>(`/api/records/${recordId}/draft`, {
     method: "PUT",
-    body: JSON.stringify({ data }),
+    body: JSON.stringify(toRuntimePayload(data)),
   });
 }
 
-export async function submitRecord(recordId: number, data: Record<string, unknown>) {
+export async function submitRecord(recordId: number, data: RecordRuntimeData) {
   return request<boolean>(`/api/records/${recordId}/submit`, {
     method: "POST",
-    body: JSON.stringify({ data }),
+    body: JSON.stringify(toRuntimePayload(data)),
   });
 }
 
@@ -105,4 +132,60 @@ export async function loadRecordDetail(recordId: number) {
 
 export async function listRecordsByForm(formId: number) {
   return request<RecordListItem[]>(`/api/records/by-form/${formId}`);
+}
+
+export async function listRelationRecordsByForm(formId: number) {
+  return request<RelationRecord[]>(`/api/records/relation/by-form/${formId}`);
+}
+
+function matchesFilter(record: RelationRecord, filter: Record<string, unknown>) {
+  const fieldKey = typeof filter.fieldKey === "string" ? filter.fieldKey : "";
+  const operator = typeof filter.operator === "string" ? filter.operator : "eq";
+  const expected = filter.value;
+  const actual = record.mainData[fieldKey];
+
+  if (!fieldKey) {
+    return true;
+  }
+
+  if (operator === "contains") {
+    return String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase());
+  }
+
+  return String(actual ?? "") === String(expected ?? "");
+}
+
+function matchesKeyword(record: RelationRecord, keyword: string, displayFields: string[]) {
+  if (!keyword.trim()) {
+    return true;
+  }
+  const normalized = keyword.trim().toLowerCase();
+  const pool = [
+    String(record.id),
+    ...displayFields.map((fieldKey) => String(record.mainData[fieldKey] ?? "")),
+  ];
+  return pool.some((value) => value.toLowerCase().includes(normalized));
+}
+
+export async function searchRelationRecords({
+  sourceFormId,
+  keyword,
+  displayFields,
+  filters,
+}: {
+  sourceFormId: number;
+  keyword: string;
+  displayFields: string[];
+  filters: Array<Record<string, unknown>>;
+}): Promise<RelationSearchResult> {
+  const records = await listRelationRecordsByForm(sourceFormId);
+  return {
+    totalCount: records.length,
+    records: records.filter((record) => {
+      if (!matchesKeyword(record, keyword, displayFields)) {
+        return false;
+      }
+      return filters.every((filter) => matchesFilter(record, filter));
+    }),
+  };
 }

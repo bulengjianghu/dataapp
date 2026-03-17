@@ -1,8 +1,11 @@
-import { Alert, Checkbox, Empty, Flex, Input, InputNumber, Select, Typography } from "antd";
+import { DeleteOutlined, LinkOutlined, PlusOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Checkbox, Empty, Flex, Input, InputNumber, Select, Space, Table, Tag, Typography } from "antd";
 import type { CheckboxGroupProps } from "antd/es/checkbox";
 import type { DefaultOptionType } from "antd/es/select";
+import type { ColumnsType } from "antd/es/table";
 import type { Node, NodesById } from "../../../types/schema/node";
 import { ContainerLayout } from "../../editor/components/formDesign/shared/ContainerLayout";
+import type { RecordRuntimeData } from "../services/recordRuntime";
 
 function toCheckboxOptions(options: unknown): CheckboxGroupProps<string>["options"] {
   if (!Array.isArray(options)) {
@@ -28,11 +31,20 @@ function toSelectOptions(options: unknown): DefaultOptionType[] {
     }));
 }
 
+function getFieldLabel(node: Node) {
+  return typeof node.props.label === "string" ? node.props.label : node.id;
+}
+
+function getFieldKey(node: Node) {
+  return typeof node.serverId === "string" ? node.serverId : "";
+}
+
 function renderFieldInput(
   node: Node,
   value: unknown,
   disabled: boolean,
-  onChange: (nextValue: unknown) => void
+  onChange: (nextValue: unknown) => void,
+  onOpenRelationSelect: () => void
 ) {
   const component = typeof node.props.component === "string" ? node.props.component : "";
   const placeholder = typeof node.props.placeholder === "string" ? node.props.placeholder : undefined;
@@ -98,23 +110,183 @@ function renderFieldInput(
       );
     case "upload":
       return <Alert type="info" showIcon message="附件上传暂未接入后端，本页先保留字段占位。" />;
+    case "relation-select":
+      return (
+        <Space.Compact style={{ width: "100%" }}>
+          <Input
+            readOnly
+            disabled={disabled}
+            value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+            placeholder={placeholder || "请选择关联记录"}
+          />
+          <Button icon={<LinkOutlined />} disabled={disabled} onClick={onOpenRelationSelect}>
+            选择
+          </Button>
+        </Space.Compact>
+      );
     default:
       return <Alert type="warning" showIcon message={`暂不支持组件：${component || node.id}`} />;
   }
+}
+
+function MainFieldRenderer({
+  node,
+  data,
+  readonly,
+  onMainValueChange,
+  onOpenRelationSelect,
+}: {
+  node: Node;
+  data: Record<string, unknown>;
+  readonly: boolean;
+  onMainValueChange: (fieldKey: string, value: unknown) => void;
+  onOpenRelationSelect: (node: Node) => void;
+}) {
+  const fieldKey = getFieldKey(node);
+  const label = getFieldLabel(node);
+  const helpText = typeof node.props.helpText === "string" ? node.props.helpText : "";
+
+  return (
+    <Flex vertical gap={8}>
+      <Typography.Text strong>
+        {Boolean(node.props.required) ? <span className="runtime-node__required">*</span> : null}
+        {label}
+      </Typography.Text>
+      {renderFieldInput(
+        node,
+        data[fieldKey],
+        readonly,
+        (nextValue) => onMainValueChange(fieldKey, nextValue),
+        () => onOpenRelationSelect(node)
+      )}
+      {helpText ? <Typography.Text type="secondary">{helpText}</Typography.Text> : null}
+    </Flex>
+  );
+}
+
+function DetailTableRuntimeBlock({
+  node,
+  nodesById,
+  data,
+  readonly,
+  onAddDetailRow,
+  onRemoveDetailRow,
+  onDetailValueChange,
+  onOpenRelationSelect,
+}: {
+  node: Node;
+  nodesById: NodesById;
+  data: RecordRuntimeData;
+  readonly: boolean;
+  onAddDetailRow: (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => void;
+  onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
+  onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
+  onOpenRelationSelect: (node: Node, detailTableKey: string, rowIndex: number) => void;
+}) {
+  const detailTableKey = getFieldKey(node);
+  const title = (node.props.title as string | undefined) ?? "明细表";
+  const description = typeof node.props.description === "string" ? node.props.description : "";
+  const allowAddRow = node.props.allowAddRow !== false;
+  const allowDeleteRow = node.props.allowDeleteRow !== false;
+  const defaultRowCount = typeof node.props.defaultRowCount === "number" ? node.props.defaultRowCount : 1;
+  const columnNodes = node.childrenIds.map((childId) => nodesById[childId]).filter((child): child is Node => Boolean(child));
+  const rows = data.detailTables[detailTableKey] ?? [];
+
+  const columns: ColumnsType<Record<string, unknown>> = [
+    ...columnNodes.map((columnNode): ColumnsType<Record<string, unknown>>[number] => {
+      const fieldKey = getFieldKey(columnNode);
+      const rawWidth = typeof columnNode.props.columnWidth === "number" ? columnNode.props.columnWidth : undefined;
+      return {
+        title: getFieldLabel(columnNode),
+        dataIndex: fieldKey,
+        key: fieldKey,
+        width: rawWidth,
+        render: (_, __, rowIndex) =>
+          renderFieldInput(
+            columnNode,
+            rows[rowIndex]?.[fieldKey],
+            readonly,
+            (nextValue) => onDetailValueChange(detailTableKey, rowIndex, fieldKey, nextValue),
+            () => onOpenRelationSelect(columnNode, detailTableKey, rowIndex)
+          ),
+      };
+    }),
+  ];
+
+  if (!readonly && allowDeleteRow) {
+    columns.push({
+      title: "操作",
+      key: "actions",
+      width: 88,
+      render: (_, __, rowIndex) => (
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => onRemoveDetailRow(detailTableKey, rowIndex)}
+        />
+      ),
+    });
+  }
+
+  const dataSource = rows.map((row, index) => ({
+    key: `${detailTableKey}-${index}`,
+    ...row,
+  }));
+
+  return (
+    <Card
+      size="small"
+      title={
+        <Space>
+          <span>{title}</span>
+          <Tag color="cyan">明细表</Tag>
+        </Space>
+      }
+      extra={
+        !readonly && allowAddRow ? (
+          <Button icon={<PlusOutlined />} size="small" onClick={() => onAddDetailRow(detailTableKey, columnNodes, defaultRowCount)}>
+            新增行
+          </Button>
+        ) : null
+      }
+      bodyStyle={{ paddingTop: 12 }}
+    >
+      <Flex vertical gap={12}>
+        {description ? <Typography.Text type="secondary">{description}</Typography.Text> : null}
+        <Table
+          size="small"
+          pagination={false}
+          scroll={{ x: "max-content" }}
+          columns={columns}
+          dataSource={dataSource}
+          locale={{ emptyText: <Empty description="暂无明细数据" /> }}
+        />
+      </Flex>
+    </Card>
+  );
 }
 
 function RuntimeFillNode({
   node,
   nodesById,
   data,
-  disabled,
-  onValueChange,
+  readonly,
+  onMainValueChange,
+  onAddDetailRow,
+  onRemoveDetailRow,
+  onDetailValueChange,
+  onOpenRelationSelect,
 }: {
   node: Node;
   nodesById: NodesById;
-  data: Record<string, unknown>;
-  disabled: boolean;
-  onValueChange: (fieldKey: string, value: unknown) => void;
+  data: RecordRuntimeData;
+  readonly: boolean;
+  onMainValueChange: (fieldKey: string, value: unknown) => void;
+  onAddDetailRow: (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => void;
+  onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
+  onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
+  onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
 }) {
   if (node.type === "container") {
     return (
@@ -127,7 +299,17 @@ function RuntimeFillNode({
           const span = typeof childNode.layout.span === "number" ? Math.max(6, Math.min(24, childNode.layout.span)) : 24;
           return (
             <div key={childId} style={{ gridColumn: `span ${span}` }}>
-              <RuntimeFillNode node={childNode} nodesById={nodesById} data={data} disabled={disabled} onValueChange={onValueChange} />
+              <RuntimeFillNode
+                node={childNode}
+                nodesById={nodesById}
+                data={data}
+                readonly={readonly}
+                onMainValueChange={onMainValueChange}
+                onAddDetailRow={onAddDetailRow}
+                onRemoveDetailRow={onRemoveDetailRow}
+                onDetailValueChange={onDetailValueChange}
+                onOpenRelationSelect={onOpenRelationSelect}
+              />
             </div>
           );
         })}
@@ -135,23 +317,33 @@ function RuntimeFillNode({
     );
   }
 
+  if (node.type === "detail_table") {
+    return (
+      <DetailTableRuntimeBlock
+        node={node}
+        nodesById={nodesById}
+        data={data}
+        readonly={readonly}
+        onAddDetailRow={onAddDetailRow}
+        onRemoveDetailRow={onRemoveDetailRow}
+        onDetailValueChange={onDetailValueChange}
+        onOpenRelationSelect={(relationNode, detailTableKey, rowIndex) => onOpenRelationSelect(relationNode, detailTableKey, rowIndex)}
+      />
+    );
+  }
+
   if (node.type !== "field") {
     return null;
   }
 
-  const fieldKey = typeof node.serverId === "string" ? node.serverId : "";
-  const label = typeof node.props.label === "string" ? node.props.label : node.id;
-  const helpText = typeof node.props.helpText === "string" ? node.props.helpText : "";
-
   return (
-    <Flex vertical gap={8}>
-      <Typography.Text strong>
-        {Boolean(node.props.required) ? <span className="runtime-node__required">*</span> : null}
-        {label}
-      </Typography.Text>
-      {renderFieldInput(node, data[fieldKey], disabled, (nextValue) => onValueChange(fieldKey, nextValue))}
-      {helpText ? <Typography.Text type="secondary">{helpText}</Typography.Text> : null}
-    </Flex>
+    <MainFieldRenderer
+      node={node}
+      data={data.mainData}
+      readonly={readonly}
+      onMainValueChange={onMainValueChange}
+      onOpenRelationSelect={(relationNode) => onOpenRelationSelect(relationNode)}
+    />
   );
 }
 
@@ -160,13 +352,21 @@ export function RecordFormCanvas({
   pageChildren,
   data,
   readonly,
-  onValueChange,
+  onMainValueChange,
+  onAddDetailRow,
+  onRemoveDetailRow,
+  onDetailValueChange,
+  onOpenRelationSelect,
 }: {
   nodesById: NodesById;
   pageChildren: string[];
-  data: Record<string, unknown>;
+  data: RecordRuntimeData;
   readonly: boolean;
-  onValueChange: (fieldKey: string, value: unknown) => void;
+  onMainValueChange: (fieldKey: string, value: unknown) => void;
+  onAddDetailRow: (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => void;
+  onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
+  onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
+  onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
 }) {
   return (
     <ContainerLayout hasChildren={pageChildren.length > 0} emptyText="页面暂无字段" emptyFallback={<Empty description="页面暂无字段" />}>
@@ -178,7 +378,17 @@ export function RecordFormCanvas({
         const span = typeof childNode.layout.span === "number" ? Math.max(6, Math.min(24, childNode.layout.span)) : 24;
         return (
           <div key={childId} style={{ gridColumn: `span ${span}` }}>
-            <RuntimeFillNode node={childNode} nodesById={nodesById} data={data} disabled={readonly} onValueChange={onValueChange} />
+            <RuntimeFillNode
+              node={childNode}
+              nodesById={nodesById}
+              data={data}
+              readonly={readonly}
+              onMainValueChange={onMainValueChange}
+              onAddDetailRow={onAddDetailRow}
+              onRemoveDetailRow={onRemoveDetailRow}
+              onDetailValueChange={onDetailValueChange}
+              onOpenRelationSelect={onOpenRelationSelect}
+            />
           </div>
         );
       })}

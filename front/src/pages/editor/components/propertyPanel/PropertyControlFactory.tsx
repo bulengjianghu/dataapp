@@ -1,6 +1,7 @@
 import { Input, InputNumber, Select, Switch } from "antd";
 import type { Node } from "../../../../types/schema/node";
 import type { PropertyFieldSchema } from "../nodes";
+import { RelationDisplayFieldsEditor, RelationFiltersEditor, RelationMappingsEditor } from "./RelationConfigEditor";
 
 function readValue(node: Node, field: PropertyFieldSchema) {
   const source = (field.target === "layout" ? node.layout : node.props) as Record<string, unknown>;
@@ -16,6 +17,34 @@ function serializeOptions(raw: string) {
       label,
       value: `option-${index + 1}`,
     }));
+}
+
+function serializeStringList(raw: string) {
+  return raw
+    .split(/\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatStringList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return "";
+  }
+  return value
+    .map((item) => (typeof item === "string" ? item : ""))
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatJson(value: unknown) {
+  if (value == null || value === "") {
+    return "[]";
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return "[]";
+  }
 }
 
 function formatOptions(value: unknown) {
@@ -102,6 +131,51 @@ export function PropertyControlFactory({
         onChange={(event) => onChange(serializeOptions(event.target.value))}
       />
     );
+  }
+
+  if (field.control === "string-list") {
+    return (
+      <Input.TextArea
+        rows={6}
+        placeholder={field.placeholder}
+        value={formatStringList(value)}
+        onChange={(event) => onChange(serializeStringList(event.target.value))}
+      />
+    );
+  }
+
+  if (field.control === "json") {
+    return (
+      <Input.TextArea
+        rows={8}
+        placeholder={field.placeholder}
+        value={formatJson(value)}
+        onChange={(event) => {
+          const raw = event.target.value.trim();
+          if (!raw) {
+            onChange([]);
+            return;
+          }
+          try {
+            onChange(JSON.parse(raw));
+          } catch {
+            onChange(value);
+          }
+        }}
+      />
+    );
+  }
+
+  if (field.control === "relation-filters") {
+    return <RelationFiltersEditor node={node} value={value} onChange={onChange} />;
+  }
+
+  if (field.control === "relation-display-fields") {
+    return <RelationDisplayFieldsEditor node={node} value={value} onChange={onChange} />;
+  }
+
+  if (field.control === "relation-mappings") {
+    return <RelationMappingsEditor node={node} value={value} onChange={onChange} />;
   }
 
   return (

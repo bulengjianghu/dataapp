@@ -44,6 +44,10 @@ export function ContainerEditorWrapper({
     event.stopPropagation();
     onSelect(node.id);
   };
+  const isDetailTable = node.type === "detail_table";
+  const title =
+    (isDetailTable ? node.props.title : node.props.label) as string | undefined;
+  const description = (node.props.description as string | undefined) ?? (isDetailTable ? "将字段拖入明细表中形成列" : undefined);
 
   return (
     <SelectionOutline
@@ -69,7 +73,7 @@ export function ContainerEditorWrapper({
           onClick={() => onSelect(node.id)}
         >
           <EditorContainerSurface
-            variant="container"
+            variant={isDetailTable ? "detail_table" : "container"}
             droppableId={`drop:container:${node.id}`}
             containerId={node.id}
             childIds={node.childrenIds}
@@ -84,6 +88,9 @@ export function ContainerEditorWrapper({
               <EditorContainerFrame
                 isOver={isOver}
                 required={Boolean(node.props.required)}
+                tagLabel={isDetailTable ? (title || "明细表") : (title || "容器")}
+                tagColor={isDetailTable ? "cyan" : "blue"}
+                description={description}
                 headDropRef={setHeadDropRef}
                 headDropOver={isOverHead}
               >

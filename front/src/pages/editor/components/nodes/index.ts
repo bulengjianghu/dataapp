@@ -2,10 +2,12 @@ import type { Node } from "../../../../types/schema/node";
 import { checkboxNodeDefinition } from "./checkbox";
 import { containerNodeDefinition } from "./container";
 import { dateNodeDefinition } from "./date";
+import { detailTableNodeDefinition } from "./detailTable";
 import { inputNodeDefinition } from "./input";
 import { numberNodeDefinition } from "./number";
 import { pageNodeDefinition } from "./page";
 import { radioNodeDefinition } from "./radio";
+import { relationSelectNodeDefinition } from "./relationSelect";
 import { selectNodeDefinition } from "./select";
 import { defaultLayoutGroup, resolveNodeComponentKey } from "./shared";
 import { textareaNodeDefinition } from "./textarea";
@@ -31,6 +33,8 @@ const componentDefinitionsList: ComponentNodeDefinition[] = [
   selectNodeDefinition,
   uploadNodeDefinition,
   containerNodeDefinition,
+  detailTableNodeDefinition,
+  relationSelectNodeDefinition,
 ];
 
 export const componentDefinitions = Object.fromEntries(
@@ -58,10 +62,10 @@ export function createPaletteNodePreset(componentKey: string) {
   const props = definition?.createDefaultProps() ?? { component: componentKey, label: componentKey };
 
   return {
-    type: componentKey === "container" ? ("container" as const) : ("field" as const),
+    type: componentKey === "container" ? ("container" as const) : componentKey === "detail-table" ? ("detail_table" as const) : ("field" as const),
     props,
     layout: {
-      span: componentKey === "container" ? 24 : 12,
+      span: componentKey === "container" || componentKey === "detail-table" ? 24 : 12,
     },
   };
 }

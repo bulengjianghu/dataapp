@@ -1,8 +1,9 @@
 package com.dataapp.record.application.service;
 
 import com.dataapp.record.domain.model.aggregate.Record;
-import com.dataapp.record.interfaces.dto.RecordListItemResponse;
 import com.dataapp.record.interfaces.dto.RecordDetailResponse;
+import com.dataapp.record.interfaces.dto.RecordListItemResponse;
+import com.dataapp.record.interfaces.dto.RelationRecordOptionResponse;
 import com.dataapp.record.domain.repository.RecordRepository;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
@@ -121,5 +122,26 @@ class RecordQueryAppServiceTest {
 
         assertThat(responses).hasSize(2);
         assertThat(responses.get(1).status()).isEqualTo("SUBMITTED");
+    }
+
+    @Test
+    void shouldListRelationOptionsAcrossCreatorsForNormalUser() {
+        when(recordRepository.findByFormId(100L)).thenReturn(List.of(
+            Record.create(41L, 100L, 1L, 101L, Map.of("mainData", Map.of("fld_name", "张三"))),
+            Record.create(42L, 100L, 1L, 202L, Map.of(
+                "mainData", Map.of("fld_name", "李四"),
+                "detailTables", Map.of("dt_items", List.of(Map.of("fld_item_name", "商品A")))
+            )).submit(Map.of(
+                "mainData", Map.of("fld_name", "李四(提交)"),
+                "detailTables", Map.of("dt_items", List.of(Map.of("fld_item_name", "商品A")))
+            ), 202L)
+        ));
+
+        List<RelationRecordOptionResponse> responses = recordQueryAppService.listRelationOptionsByFormId(NORMAL_USER, 100L);
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(1).id()).isEqualTo(42L);
+        assertThat(responses.get(1).mainData()).containsEntry("fld_name", "李四(提交)");
+        assertThat(responses.get(1).detailTables()).containsKey("dt_items");
     }
 }

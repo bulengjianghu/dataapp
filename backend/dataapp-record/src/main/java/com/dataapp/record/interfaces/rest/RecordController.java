@@ -7,6 +7,7 @@ import com.dataapp.record.interfaces.dto.RecordDetailResponse;
 import com.dataapp.record.interfaces.dto.RecordDraftSaveRequest;
 import com.dataapp.record.interfaces.dto.RecordListItemResponse;
 import com.dataapp.record.interfaces.dto.RecordSubmitRequest;
+import com.dataapp.record.interfaces.dto.RelationRecordOptionResponse;
 import com.dataapp.shared.kernel.response.Result;
 import com.dataapp.shared.security.CurrentUser;
 import jakarta.validation.Valid;
@@ -85,6 +86,14 @@ public class RecordController {
         @PathVariable("formId") Long formId
     ) {
         return Result.success(recordQueryAppService.listByFormId(currentUser, formId));
+    }
+
+    @GetMapping("/relation/by-form/{formId}")
+    public Result<List<RelationRecordOptionResponse>> listRelationOptionsByForm(
+        @AuthenticationPrincipal CurrentUser currentUser,
+        @PathVariable("formId") Long formId
+    ) {
+        return Result.success(recordQueryAppService.listRelationOptionsByFormId(currentUser, formId));
     }
 
     private Map<String, Object> payloadOf(

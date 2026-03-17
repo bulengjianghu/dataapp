@@ -4,7 +4,7 @@ import type { NodesById } from "../../../../../types/schema/node";
 import { ContainerLayout } from "../shared/ContainerLayout";
 import { NodeChildrenRenderer } from "./NodeChildrenRenderer";
 
-type SurfaceVariant = "root" | "container";
+type SurfaceVariant = "root" | "container" | "detail_table";
 
 export function EditorContainerSurface({
   variant,
@@ -42,6 +42,7 @@ export function EditorContainerSurface({
         : {
             type: "container",
             containerId,
+            containerType: variant,
           },
   });
 

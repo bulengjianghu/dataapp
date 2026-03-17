@@ -99,6 +99,27 @@ public class FormQueryAppService {
         );
     }
 
+    public FormRuntimeResponse getPublishedByFormId(Long formId) {
+        FormDefinition formDefinition = formDefinitionRepository.findById(formId);
+        if (formDefinition == null) {
+            throw new BizException(ErrorCode.FORM_NOT_FOUND, "表单不存在");
+        }
+        String formCode = formDefinition.getFormCode();
+        FormVersion formVersion = formDefinitionRepository.findCurrentVersionByFormCode(formCode);
+        if (formVersion == null) {
+            throw new BizException(ErrorCode.FORM_NOT_FOUND, "表单尚未发布");
+        }
+        return new FormRuntimeResponse(
+            formDefinition.getId(),
+            formDefinition.getFormCode(),
+            formDefinition.getName(),
+            formDefinition.getDescription(),
+            formVersion.getId(),
+            formVersion.getVersionNo(),
+            readFields(formVersion.getFieldsJson())
+        );
+    }
+
     private Map<String, Object> readFields(String fieldsJson) {
         try {
             return objectMapper.readValue(fieldsJson, new TypeReference<LinkedHashMap<String, Object>>() {

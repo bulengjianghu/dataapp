@@ -36,11 +36,11 @@ export function RuntimeNodeRenderer({
   node: Node;
   nodesById: NodesById;
 }) {
-  if (node.type === "container") {
+  if (node.type === "container" || node.type === "detail_table") {
     return (
       <RuntimeContainerFrame
         hasChildren={node.childrenIds.length > 0}
-        emptyText="容器暂无字段"
+        emptyText={node.type === "detail_table" ? "明细表暂无列" : "容器暂无字段"}
       >
         {node.childrenIds.map((childId) => {
           const childNode = nodesById[childId];

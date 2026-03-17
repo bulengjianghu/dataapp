@@ -35,7 +35,7 @@ function resolveDropTarget(nodesById: Record<string, Node>, info: OutlineDropInf
   }
 
   if (!info.dropToGap) {
-    if (dropNode.type !== "page" && dropNode.type !== "container") {
+    if (dropNode.type !== "page" && dropNode.type !== "container" && dropNode.type !== "detail_table") {
       return null;
     }
 
@@ -73,6 +73,11 @@ function getNodeDisplayLabel(node: Node) {
   if (node.type === "page") {
     const title = typeof node.props.title === "string" ? node.props.title.trim() : "";
     return title || "页面";
+  }
+
+  if (node.type === "detail_table") {
+    const title = typeof node.props.title === "string" ? node.props.title.trim() : "";
+    return title || "明细表";
   }
 
   const label = typeof node.props.label === "string" ? node.props.label.trim() : "";
@@ -118,7 +123,7 @@ export function ComponentOutlineTree() {
           <div className="editor-outline-tree__item">
             <div className="editor-outline-tree__main">
               <span className="editor-outline-tree__icon" aria-hidden="true">
-                {node.type === "container" || node.type === "page" ? <FolderOpenOutlined /> : <FileTextOutlined />}
+                {node.type === "container" || node.type === "page" || node.type === "detail_table" ? <FolderOpenOutlined /> : <FileTextOutlined />}
               </span>
               <div className="editor-outline-tree__text">
                 <div className="editor-outline-tree__line">
@@ -139,7 +144,7 @@ export function ComponentOutlineTree() {
             {node.id !== PAGE_NODE_ID ? (
               <Popconfirm
                 title="确认删除该组件？"
-                description={node.type === "container" ? "删除容器会同时删除其下所有子组件" : undefined}
+                description={node.type === "container" || node.type === "detail_table" ? "删除容器会同时删除其下所有子组件" : undefined}
                 okText="删除"
                 cancelText="取消"
                 onConfirm={(event) => {
@@ -190,7 +195,7 @@ export function ComponentOutlineTree() {
 
           if (dropPosition === 0) {
             const targetNode = nodesById[dropNodeId];
-            if (!targetNode || (targetNode.type !== "page" && targetNode.type !== "container")) {
+            if (!targetNode || (targetNode.type !== "page" && targetNode.type !== "container" && targetNode.type !== "detail_table")) {
               return false;
             }
             return !isDescendant(nodesById, dragNodeKey, dropNodeId);

@@ -1,7 +1,18 @@
 import type { ReactNode } from "react";
 import type { Node } from "../../../../types/schema/node";
 
-export type PropertyControlType = "input" | "textarea" | "number" | "switch" | "select" | "options";
+export type PropertyControlType =
+  | "input"
+  | "textarea"
+  | "number"
+  | "switch"
+  | "select"
+  | "options"
+  | "string-list"
+  | "json"
+  | "relation-display-fields"
+  | "relation-filters"
+  | "relation-mappings";
 export type PropertyFieldTarget = "props" | "layout";
 
 export type PropertyFieldSchema = {

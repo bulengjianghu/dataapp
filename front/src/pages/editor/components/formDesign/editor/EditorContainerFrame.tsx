@@ -4,12 +4,18 @@ import type { ReactNode } from "react";
 export function EditorContainerFrame({
   isOver,
   required,
+  tagLabel = "容器",
+  tagColor = "blue",
+  description,
   headDropRef,
   headDropOver,
   children,
 }: {
   isOver: boolean;
   required: boolean;
+  tagLabel?: string;
+  tagColor?: string;
+  description?: string;
   headDropRef?: (element: HTMLDivElement | null) => void;
   headDropOver: boolean;
   children: ReactNode;
@@ -29,9 +35,10 @@ export function EditorContainerFrame({
             *
           </span>
         ) : null}
-        <Tag color="blue" className="editor-node-card__required">
-          容器
+        <Tag color={tagColor} className="editor-node-card__required">
+          {tagLabel}
         </Tag>
+        {description ? <span className="editor-container__description">{description}</span> : null}
       </div>
       {children}
     </div>

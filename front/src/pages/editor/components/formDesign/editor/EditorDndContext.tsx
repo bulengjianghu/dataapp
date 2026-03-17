@@ -59,7 +59,7 @@ function getActivePreview(active: Active, nodesById: ReturnType<typeof selectNod
       return null;
     }
     return {
-      label: (node.props.label as string | undefined) ?? node.id,
+      label: ((node.type === "detail_table" ? node.props.title : node.props.label) as string | undefined) ?? node.id,
       tag: node.type,
     };
   }
@@ -86,7 +86,7 @@ function getDroppablePriority(collision: Collision, nodesById: ReturnType<typeof
   if (type === "node") {
     const nodeId = collision.data?.droppableContainer?.data.current?.nodeId as string | undefined;
     const node = nodeId ? nodesById[nodeId] : null;
-    return node?.type === "container" ? 2 : 3;
+    return node?.type === "container" || node?.type === "detail_table" ? 2 : 3;
   }
   if (type === "container") {
     return 2;
@@ -234,7 +234,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
             (() => {
               const activeNode = nodesById[getActiveNodeId(activeId)!];
 
-              if (activeNode.type === "container") {
+              if (activeNode.type === "container" || activeNode.type === "detail_table") {
                 return (
                   <div className="editor-dnd-overlay editor-dnd-overlay--node">
                     <ContainerEditorWrapper

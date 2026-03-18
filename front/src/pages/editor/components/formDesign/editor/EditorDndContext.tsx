@@ -23,6 +23,7 @@ import { PAGE_NODE_ID } from "../../../../../types/schema/node";
 import { createPaletteNodePreset } from "../../nodes";
 import { EditorNodeCard } from "./EditorNodeCard";
 import { ContainerEditorWrapper } from "./ContainerEditorWrapper";
+import { canMoveIntoParent } from "./dropRules";
 
 type EditorDndStatus = {
   activeId: string | null;
@@ -185,6 +186,13 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
       setDisableDropAnimation(true);
       const componentKey = activeData.componentKey as string;
       const preset = createPaletteNodePreset(componentKey);
+      if (!canMoveIntoParent(nodesById, target.targetParentId, { type: preset.type })) {
+        setActiveId(null);
+        setOverId(null);
+        setActiveLabel(null);
+        setActiveTag(null);
+        return;
+      }
       dispatch(
         addNode({
           type: preset.type,
@@ -198,6 +206,13 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
 
     if (activeData.source === "node" && typeof activeData.nodeId === "string") {
       setDisableDropAnimation(false);
+      if (!canMoveIntoParent(nodesById, target.targetParentId, nodesById[activeData.nodeId])) {
+        setActiveId(null);
+        setOverId(null);
+        setActiveLabel(null);
+        setActiveTag(null);
+        return;
+      }
       dispatch(
         moveNode({
           nodeId: activeData.nodeId,

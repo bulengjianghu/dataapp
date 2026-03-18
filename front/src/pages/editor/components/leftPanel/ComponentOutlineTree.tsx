@@ -7,6 +7,7 @@ import { selectNodesById, selectSelectedNodeKey } from "../../../../store/select
 import { deleteNode, moveNode, selectNode } from "../../../../store/slices/formSchemaSlice";
 import { PAGE_NODE_ID, type Node } from "../../../../types/schema/node";
 import { getComponentTitle } from "../nodes";
+import { canMoveIntoParent } from "../formDesign/editor/dropRules";
 
 type OutlineDropInfo = Parameters<NonNullable<TreeProps["onDrop"]>>[0];
 
@@ -198,7 +199,7 @@ export function ComponentOutlineTree() {
             if (!targetNode || (targetNode.type !== "page" && targetNode.type !== "container" && targetNode.type !== "detail_table")) {
               return false;
             }
-            return !isDescendant(nodesById, dragNodeKey, dropNodeId);
+            return !isDescendant(nodesById, dragNodeKey, dropNodeId) && canMoveIntoParent(nodesById, dropNodeId, nodesById[dragNodeKey]);
           }
 
           const targetNode = nodesById[dropNodeId];
@@ -206,7 +207,7 @@ export function ComponentOutlineTree() {
             return false;
           }
 
-          return !isDescendant(nodesById, dragNodeKey, targetNode.parentId);
+          return !isDescendant(nodesById, dragNodeKey, targetNode.parentId) && canMoveIntoParent(nodesById, targetNode.parentId, nodesById[dragNodeKey]);
         }}
         onDragStart={({ node }) => {
           setDragNodeKey(String(node.key));
@@ -222,6 +223,9 @@ export function ComponentOutlineTree() {
           }
 
           if (isDescendant(nodesById, target.nodeId, target.targetParentId)) {
+            return;
+          }
+          if (!canMoveIntoParent(nodesById, target.targetParentId, nodesById[target.nodeId])) {
             return;
           }
 

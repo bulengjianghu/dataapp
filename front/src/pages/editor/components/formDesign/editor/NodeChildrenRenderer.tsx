@@ -37,74 +37,106 @@ export function NodeChildrenRenderer({
     return <Typography.Text type="secondary">{emptyText}</Typography.Text>;
   }
 
+  const renderChild = (childId: string, extraClassName = "") => {
+    if (!nodesById[childId]) {
+      return (
+        <Card key={childId} size="small" className={`editor-node-missing ${depthClass(depth)}`}>
+          <Typography.Text type="danger">节点缺失: {childId}</Typography.Text>
+        </Card>
+      );
+    }
+
+    const node = nodesById[childId];
+    const span = typeof node.layout.span === "number" ? Math.max(6, Math.min(24, node.layout.span)) : 24;
+    const columnWidth = typeof node.props.columnWidth === "number" ? Math.max(200, node.props.columnWidth) : 200;
+    const entryStyle =
+      layoutMode === "detail-table"
+        ? { width: `${columnWidth}px`, minWidth: `${columnWidth}px`, flex: "0 0 auto" }
+        : { gridColumn: `span ${span}` };
+    const isNodeDropTarget =
+      over?.data.current?.type === "node" &&
+      over.data.current.nodeId === childId &&
+      showDropTargetState;
+    const entryClassName = [
+      "editor-node-entry",
+      depthClass(depth),
+      layoutMode === "detail-table" ? "editor-node-entry--detail-column" : "",
+      extraClassName,
+      isNodeDropTarget ? "is-drop-target" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    if (node.type !== "container" && node.type !== "detail_table") {
+      return (
+        <div
+          key={childId}
+          className={entryClassName}
+          style={entryStyle}
+        >
+          <EditorNodeCard
+            node={node}
+            depth={depth}
+            selected={selectedNodeKey === node.id}
+            dropTarget={isNodeDropTarget}
+            onSelect={onSelect}
+            onDelete={onDelete}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={childId}
+        className={entryClassName}
+        style={entryStyle}
+      >
+        <ContainerEditorWrapper
+          node={node}
+          depth={depth}
+          selected={selectedNodeKey === node.id}
+          onSelect={onSelect}
+          onDelete={onDelete}
+          nodesById={nodesById}
+          selectedNodeKey={selectedNodeKey}
+        />
+      </div>
+    );
+  };
+
+  if (layoutMode === "detail-table") {
+    return (
+      <div className="detail-table-editor">
+        <div className="detail-table-editor__header">
+          {childIds.map((childId) => {
+            const node = nodesById[childId];
+            const columnWidth = typeof node?.props.columnWidth === "number" ? Math.max(200, node.props.columnWidth) : 200;
+            const label = typeof node?.props.label === "string" && node.props.label.trim() ? node.props.label.trim() : "未命名字段";
+
+            return (
+              <div
+                key={`${childId}:header`}
+                className="detail-table-editor__header-cell"
+                style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, flex: "0 0 auto" }}
+              >
+                <Typography.Text ellipsis className="detail-table-editor__header-text">
+                  {label}
+                </Typography.Text>
+              </div>
+            );
+          })}
+        </div>
+        <div className="detail-table-editor__body">
+          {childIds.map((childId) => renderChild(childId, "detail-table-editor__body-cell"))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      {childIds.map((childId) => {
-        if (!nodesById[childId]) {
-          return (
-            <Card key={childId} size="small" className={`editor-node-missing ${depthClass(depth)}`}>
-              <Typography.Text type="danger">节点缺失: {childId}</Typography.Text>
-            </Card>
-          );
-        }
-
-        const node = nodesById[childId];
-        const span = typeof node.layout.span === "number" ? Math.max(6, Math.min(24, node.layout.span)) : 24;
-        const columnWidth = typeof node.props.columnWidth === "number" ? Math.max(200, node.props.columnWidth) : 200;
-        const entryStyle =
-          layoutMode === "detail-table"
-            ? { width: `${columnWidth}px`, minWidth: `${columnWidth}px`, flex: "0 0 auto" }
-            : { gridColumn: `span ${span}` };
-        const isNodeDropTarget =
-          over?.data.current?.type === "node" &&
-          over.data.current.nodeId === childId &&
-          showDropTargetState;
-        const entryClassName = [
-          "editor-node-entry",
-          depthClass(depth),
-          layoutMode === "detail-table" ? "editor-node-entry--detail-column" : "",
-          isNodeDropTarget ? "is-drop-target" : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
-
-        if (node.type !== "container" && node.type !== "detail_table") {
-          return (
-            <div
-              key={childId}
-              className={entryClassName}
-              style={entryStyle}
-            >
-              <EditorNodeCard
-                node={node}
-                depth={depth}
-                selected={selectedNodeKey === node.id}
-                dropTarget={isNodeDropTarget}
-                onSelect={onSelect}
-                onDelete={onDelete}
-              />
-            </div>
-          );
-        }
-
-        return (
-          <div
-            key={childId}
-            className={entryClassName}
-            style={entryStyle}
-          >
-            <ContainerEditorWrapper
-              node={node}
-              depth={depth}
-              selected={selectedNodeKey === node.id}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              nodesById={nodesById}
-              selectedNodeKey={selectedNodeKey}
-            />
-          </div>
-        );
-      })}
+      {childIds.map((childId) => renderChild(childId))}
     </>
   );
 }

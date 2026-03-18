@@ -91,6 +91,7 @@ export function ContainerEditorWrapper({
                 tagLabel={isDetailTable ? (title || "明细表") : (title || "容器")}
                 tagColor={isDetailTable ? "cyan" : "blue"}
                 description={description}
+                variant={isDetailTable ? "detail_table" : "container"}
                 headDropRef={setHeadDropRef}
                 headDropOver={isOverHead}
               >

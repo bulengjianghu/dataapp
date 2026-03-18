@@ -5,11 +5,13 @@ export function ContainerLayout({
   hasChildren,
   emptyText,
   emptyFallback,
+  className,
   children,
 }: {
   hasChildren: boolean;
   emptyText: string;
   emptyFallback?: ReactNode;
+  className?: string;
   children: ReactNode;
 }) {
   if (!hasChildren) {
@@ -20,5 +22,5 @@ export function ContainerLayout({
     );
   }
 
-  return <div className="node-layout__grid">{children}</div>;
+  return <div className={["node-layout__grid", className].filter(Boolean).join(" ")}>{children}</div>;
 }

@@ -7,6 +7,7 @@ export function EditorContainerFrame({
   tagLabel = "容器",
   tagColor = "blue",
   description,
+  variant = "container",
   headDropRef,
   headDropOver,
   children,
@@ -16,13 +17,16 @@ export function EditorContainerFrame({
   tagLabel?: string;
   tagColor?: string;
   description?: string;
+  variant?: "container" | "detail_table";
   headDropRef?: (element: HTMLDivElement | null) => void;
   headDropOver: boolean;
   children: ReactNode;
 }) {
   return (
     <div
-      className={["editor-container__children", isOver ? "is-over" : ""].filter(Boolean).join(" ")}
+      className={["editor-container__children", variant === "detail_table" ? "editor-container__children--detail-table" : "", isOver ? "is-over" : ""]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div
         ref={headDropRef}

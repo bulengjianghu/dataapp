@@ -65,6 +65,7 @@ export function EditorContainerSurface({
     <ContainerLayout
       hasChildren={childIds.length > 0}
       emptyText={emptyText}
+      className={variant === "detail_table" ? "node-layout__detail-table" : undefined}
     >
       <NodeChildrenRenderer
         nodesById={nodesById}
@@ -73,6 +74,7 @@ export function EditorContainerSurface({
         emptyText={emptyText}
         selectedNodeKey={selectedNodeKey}
         parentId={containerId}
+        layoutMode={variant === "detail_table" ? "detail-table" : "grid"}
         onSelect={onSelect}
         onDelete={onDelete}
       />

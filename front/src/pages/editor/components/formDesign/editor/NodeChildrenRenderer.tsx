@@ -17,6 +17,7 @@ export function NodeChildrenRenderer({
   onSelect,
   onDelete,
   parentId,
+  layoutMode = "grid",
 }: {
   nodesById: NodesById;
   childIds: string[];
@@ -26,6 +27,7 @@ export function NodeChildrenRenderer({
   onSelect: (nodeId: string) => void;
   onDelete: (nodeId: string) => void;
   parentId: string;
+  layoutMode?: "grid" | "detail-table";
 }) {
   const { active, over } = useDndContext();
   const activeSource = active?.data.current?.source;
@@ -48,6 +50,18 @@ export function NodeChildrenRenderer({
 
         const node = nodesById[childId];
         const span = typeof node.layout.span === "number" ? Math.max(6, Math.min(24, node.layout.span)) : 24;
+        const columnWidth = typeof node.props.columnWidth === "number" ? Math.max(200, node.props.columnWidth) : 200;
+        const entryStyle =
+          layoutMode === "detail-table"
+            ? { width: `${columnWidth}px`, minWidth: `${columnWidth}px`, flex: "0 0 auto" }
+            : { gridColumn: `span ${span}` };
+        const entryClassName = [
+          "editor-node-entry",
+          depthClass(depth),
+          layoutMode === "detail-table" ? "editor-node-entry--detail-column" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         const showInsertBefore =
           over?.data.current?.type === "node" &&
           over.data.current.nodeId === childId &&
@@ -57,8 +71,8 @@ export function NodeChildrenRenderer({
           return (
             <div
               key={childId}
-              className={`editor-node-entry ${depthClass(depth)}`}
-              style={{ gridColumn: `span ${span}` }}
+              className={entryClassName}
+              style={entryStyle}
             >
               {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
               <EditorNodeCard
@@ -75,8 +89,8 @@ export function NodeChildrenRenderer({
         return (
           <div
             key={childId}
-            className={`editor-node-entry ${depthClass(depth)}`}
-            style={{ gridColumn: `span ${span}` }}
+            className={entryClassName}
+            style={entryStyle}
           >
             {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
             <ContainerEditorWrapper

@@ -185,6 +185,17 @@
   gap: 8px;
 }
 
+.node-layout__detail-table {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 12px 20px 12px 4px;
+  margin: -12px -20px -12px -4px;
+}
+
 .editor-node-grid .editor-depth-0,
 .editor-node-grid .editor-depth-1,
 .editor-node-grid .editor-depth-2,
@@ -318,6 +329,20 @@
 
 .editor-container__children .editor-node-entry {
   margin-left: 0;
+}
+
+.editor-container__children--detail-table {
+  overflow: visible;
+}
+
+.editor-node-entry--detail-column {
+  max-width: 100%;
+}
+
+.editor-node-entry--detail-column .editor-node-card,
+.editor-node-entry--detail-column .editor-node-card__preview,
+.editor-node-entry--detail-column .editor-node-card__body {
+  width: 100%;
 }
 
 .editor-container__meta {

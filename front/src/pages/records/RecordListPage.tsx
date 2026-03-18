@@ -1,5 +1,5 @@
 import { ArrowLeftOutlined, FileAddOutlined, PrinterOutlined, ReloadOutlined, SaveOutlined, SendOutlined } from "@ant-design/icons";
-import { Button, Card, Drawer, Empty, Flex, Input, List, Modal, Popconfirm, Space, Spin, Table, Tag, Typography, message } from "antd";
+import { Button, Card, Drawer, Empty, Flex, Input, Modal, Popconfirm, Space, Spin, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -7,7 +7,10 @@ import type { Node } from "../../types/schema/node";
 import { RecordFormCanvas } from "../fill/components/RecordFormCanvas";
 import {
   createRecord,
+  formatRelationDisplayValue,
+  getRelationFieldLabel,
   listRecordsByForm,
+  loadRuntimeFormById,
   loadRecordDetail,
   loadRuntimeForm,
   saveRecordDraft,
@@ -47,6 +50,20 @@ function buildDefaultDetailRow(columnNodes: Node[]) {
   }, {});
 }
 
+function buildRelationDisplayKey(node: Node, detailTableKey?: string, rowIndex?: number) {
+  return [node.id, detailTableKey ?? "MAIN", typeof rowIndex === "number" ? String(rowIndex) : "ROOT"].join(":");
+}
+
+function readRelationDisplayFields(node: Node) {
+  return Array.isArray(node.props.displayFields)
+    ? node.props.displayFields.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function readSelectedDisplayField(node: Node) {
+  return typeof node.props.selectedDisplayField === "string" ? node.props.selectedDisplayField.trim() : "";
+}
+
 export function RecordListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -68,12 +85,52 @@ export function RecordListPage() {
   const [relationRecords, setRelationRecords] = useState<RelationRecord[]>([]);
   const [selectedRelationRecordId, setSelectedRelationRecordId] = useState<number | null>(null);
   const [relationEmptyHint, setRelationEmptyHint] = useState("暂无可选关联记录");
+  const [relationSourceForms, setRelationSourceForms] = useState<Record<number, RuntimeForm>>({});
+  const [relationDisplayValues, setRelationDisplayValues] = useState<Record<string, string>>({});
 
   const formId = searchParams.get("formId");
   const formCode = searchParams.get("formCode");
 
   const pageChildren = useMemo(() => runtimeForm?.nodesById.page_root?.childrenIds ?? [], [runtimeForm]);
   const readonly = drawerMode === "view";
+
+  const ensureRelationSourceForm = async (sourceFormId: number) => {
+    const cached = relationSourceForms[sourceFormId];
+    if (cached) {
+      return cached;
+    }
+    const loaded = await loadRuntimeFormById(sourceFormId);
+    setRelationSourceForms((current) => ({ ...current, [sourceFormId]: loaded }));
+    return loaded;
+  };
+
+  const resolveRelationDisplayText = (
+    node: Node,
+    record: RelationRecord,
+    sourceForm: RuntimeForm | undefined
+  ) => {
+    const selectedDisplayField = readSelectedDisplayField(node);
+    if (selectedDisplayField) {
+      const value = formatRelationDisplayValue(sourceForm?.nodesById, selectedDisplayField, record.mainData[selectedDisplayField]);
+      if (value) {
+        return value;
+      }
+    }
+    const displayFields = readRelationDisplayFields(node);
+    if (displayFields.length > 0) {
+      const fallback = displayFields
+        .map((fieldKey) => formatRelationDisplayValue(sourceForm?.nodesById, fieldKey, record.mainData[fieldKey]))
+        .filter(Boolean)
+        .join(" / ");
+      if (fallback) {
+        return fallback;
+      }
+    }
+    return String(record.id);
+  };
+
+  const getRelationDisplayValue = (node: Node, detailTableKey?: string, rowIndex?: number) =>
+    relationDisplayValues[buildRelationDisplayKey(node, detailTableKey, rowIndex)];
 
   const loadPage = async () => {
     if (!formId || !formCode) {
@@ -109,6 +166,7 @@ export function RecordListPage() {
     setDrawerMode("create");
     setDrawerRecordId(null);
     setDrawerData(createEmptyRuntimeData());
+    setRelationDisplayValues({});
     setDrawerOpen(true);
   };
 
@@ -123,6 +181,7 @@ export function RecordListPage() {
         mainData: detail.mainData ?? {},
         detailTables: detail.detailTables ?? {},
       });
+      setRelationDisplayValues({});
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "加载记录详情失败");
       setDrawerOpen(false);
@@ -142,6 +201,7 @@ export function RecordListPage() {
     setRelationDialogOpen(false);
     setRelationDialogContext(null);
     setRelationEmptyHint("暂无可选关联记录");
+    setRelationDisplayValues({});
   };
 
   const handleMainValueChange = (fieldKey: string, value: unknown) => {
@@ -266,9 +326,8 @@ export function RecordListPage() {
     }
     setRelationLoading(true);
     try {
-      const displayFields = Array.isArray(context.node.props.displayFields)
-        ? context.node.props.displayFields.filter((item): item is string => typeof item === "string")
-        : [];
+      const sourceForm = await ensureRelationSourceForm(sourceFormId);
+      const displayFields = readRelationDisplayFields(context.node);
       const filters = Array.isArray(context.node.props.filters)
         ? context.node.props.filters.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
         : [];
@@ -277,6 +336,7 @@ export function RecordListPage() {
         keyword,
         displayFields,
         filters,
+        sourceNodesById: sourceForm.nodesById,
       });
       setRelationRecords(result.records);
       setSelectedRelationRecordId(result.records[0]?.id ?? null);
@@ -320,7 +380,7 @@ export function RecordListPage() {
     setRelationEmptyHint("暂无可选关联记录");
   };
 
-  const handleConfirmRelationRecord = () => {
+  const handleConfirmRelationRecord = async () => {
     if (!relationDialogContext || selectedRelationRecordId == null) {
       return;
     }
@@ -329,6 +389,10 @@ export function RecordListPage() {
     if (!selectedRecord) {
       return;
     }
+
+    const sourceFormId = Number(relationDialogContext.node.props.sourceFormId);
+    const sourceForm = sourceFormId ? await ensureRelationSourceForm(sourceFormId) : undefined;
+    const displayText = resolveRelationDisplayText(relationDialogContext.node, selectedRecord, sourceForm);
 
     const fieldKey = getFieldKey(relationDialogContext.node);
     const mappings = Array.isArray(relationDialogContext.node.props.mappings)
@@ -376,6 +440,11 @@ export function RecordListPage() {
       });
     }
 
+    setRelationDisplayValues((current) => ({
+      ...current,
+      [buildRelationDisplayKey(relationDialogContext.node, relationDialogContext.detailTableKey, relationDialogContext.rowIndex)]: displayText,
+    }));
+
     closeRelationDialog();
   };
 
@@ -410,6 +479,32 @@ export function RecordListPage() {
       ),
     },
   ];
+
+  const relationDialogColumns = useMemo<ColumnsType<RelationRecord>>(() => {
+    if (!relationDialogContext) {
+      return [];
+    }
+    const sourceFormId = Number(relationDialogContext.node.props.sourceFormId);
+    const sourceForm = sourceFormId ? relationSourceForms[sourceFormId] : undefined;
+    const displayFields = readRelationDisplayFields(relationDialogContext.node);
+
+    if (displayFields.length === 0) {
+      return [
+        {
+          title: "记录 ID",
+          dataIndex: "id",
+          key: "id",
+          render: (value: number) => `#${value}`,
+        },
+      ];
+    }
+
+    return displayFields.map((fieldKey) => ({
+      title: getRelationFieldLabel(sourceForm?.nodesById, fieldKey),
+      key: fieldKey,
+      render: (_, record) => formatRelationDisplayValue(sourceForm?.nodesById, fieldKey, record.mainData[fieldKey]) || "-",
+    }));
+  }, [relationDialogContext, relationSourceForms]);
 
   if (loading) {
     return (
@@ -502,6 +597,7 @@ export function RecordListPage() {
                 onRemoveDetailRow={handleRemoveDetailRow}
                 onDetailValueChange={handleDetailValueChange}
                 onOpenRelationSelect={openRelationDialog}
+                getRelationDisplayValue={getRelationDisplayValue}
               />
             </Flex>
           </Card>
@@ -512,9 +608,9 @@ export function RecordListPage() {
         title="关联选择"
         open={relationDialogOpen}
         onCancel={closeRelationDialog}
-        onOk={handleConfirmRelationRecord}
+        onOk={() => void handleConfirmRelationRecord()}
         okButtonProps={{ disabled: selectedRelationRecordId == null }}
-        width={760}
+        width={860}
         destroyOnClose
       >
         <Flex vertical gap={16}>
@@ -536,27 +632,31 @@ export function RecordListPage() {
           ) : relationRecords.length === 0 ? (
             <Empty description={relationEmptyHint} />
           ) : (
-            <List
-              bordered
+            <Table<RelationRecord>
+              rowKey="id"
+              size="small"
+              pagination={false}
+              columns={relationDialogColumns}
               dataSource={relationRecords}
-              renderItem={(record) => (
-                <List.Item
-                  onClick={() => setSelectedRelationRecordId(record.id)}
-                  className={record.id === selectedRelationRecordId ? "relation-select__item is-active" : "relation-select__item"}
-                  extra={<Tag color={record.status === "SUBMITTED" ? "green" : "gold"}>{record.status}</Tag>}
-                >
-                  <Flex vertical gap={4}>
-                    <Typography.Text strong>记录 #{record.id}</Typography.Text>
-                    <Typography.Text type="secondary">
-                      {relationDialogContext && Array.isArray(relationDialogContext.node.props.displayFields) && relationDialogContext.node.props.displayFields.length > 0
-                        ? (relationDialogContext.node.props.displayFields as string[])
-                            .map((fieldKey) => `${fieldKey}: ${String(record.mainData[fieldKey] ?? "-")}`)
-                            .join(" | ")
-                        : JSON.stringify(record.mainData)}
-                    </Typography.Text>
-                  </Flex>
-                </List.Item>
-              )}
+              rowSelection={{
+                type: "radio",
+                selectedRowKeys: selectedRelationRecordId == null ? [] : [selectedRelationRecordId],
+                onChange: (selectedRowKeys) => {
+                  const nextKey = selectedRowKeys[0];
+                  setSelectedRelationRecordId(typeof nextKey === "number" ? nextKey : null);
+                },
+              }}
+              onRow={(record) => ({
+                onClick: () => setSelectedRelationRecordId(record.id),
+              })}
+              expandable={{
+                expandedRowRender: (record) => (
+                  <Space>
+                    <Typography.Text type="secondary">记录 #{record.id}</Typography.Text>
+                    <Tag color={record.status === "SUBMITTED" ? "green" : "gold"}>{record.status}</Tag>
+                  </Space>
+                ),
+              }}
             />
           )}
         </Flex>

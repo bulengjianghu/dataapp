@@ -1,7 +1,12 @@
 import { Input, InputNumber, Select, Switch } from "antd";
 import type { Node } from "../../../../types/schema/node";
 import type { PropertyFieldSchema } from "../nodes";
-import { RelationDisplayFieldsEditor, RelationFiltersEditor, RelationMappingsEditor } from "./RelationConfigEditor";
+import {
+  RelationDisplayFieldsEditor,
+  RelationFiltersEditor,
+  RelationMappingsEditor,
+  RelationSelectedDisplayFieldEditor,
+} from "./RelationConfigEditor";
 
 function readValue(node: Node, field: PropertyFieldSchema) {
   const source = (field.target === "layout" ? node.layout : node.props) as Record<string, unknown>;
@@ -172,6 +177,10 @@ export function PropertyControlFactory({
 
   if (field.control === "relation-display-fields") {
     return <RelationDisplayFieldsEditor node={node} value={value} onChange={onChange} />;
+  }
+
+  if (field.control === "relation-selected-display-field") {
+    return <RelationSelectedDisplayFieldEditor node={node} value={value} onChange={onChange} />;
   }
 
   if (field.control === "relation-mappings") {

@@ -11,6 +11,7 @@ export type PropertyControlType =
   | "string-list"
   | "json"
   | "relation-display-fields"
+  | "relation-selected-display-field"
   | "relation-filters"
   | "relation-mappings";
 export type PropertyFieldTarget = "props" | "layout";

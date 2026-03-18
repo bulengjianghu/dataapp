@@ -25,6 +25,8 @@ type MappingRow = {
   currentFieldKey: string;
 };
 
+const TEXT_CAPABLE_COMPONENTS = new Set(["input", "textarea", "number", "radio", "select", "checkbox"]);
+
 function normalizeDisplayFields(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -58,6 +60,14 @@ function createRowId() {
 
 function isFieldNode(node: Node) {
   return node.type === "field" && typeof node.serverId === "string" && node.serverId.trim().length > 0;
+}
+
+function isTextCapableFieldNode(node: Node) {
+  if (!isFieldNode(node)) {
+    return false;
+  }
+  const component = typeof node.props.component === "string" ? node.props.component : "";
+  return TEXT_CAPABLE_COMPONENTS.has(component);
 }
 
 function getNodeLabel(node: Node) {
@@ -326,6 +336,46 @@ export function RelationDisplayFieldsEditor({
         </Flex>
       </Modal>
     </>
+  );
+}
+
+export function RelationSelectedDisplayFieldEditor({
+  node,
+  value,
+  onChange,
+}: {
+  node: Node;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const sourceFormId = typeof node.props.sourceFormId === "string" ? node.props.sourceFormId : "";
+  const [textFieldOptions, setTextFieldOptions] = useState<FieldOption[]>([]);
+
+  useEffect(() => {
+    if (!sourceFormId) {
+      setTextFieldOptions([]);
+      return;
+    }
+    void loadDraftFromServer(sourceFormId)
+      .then((draft) => {
+        setTextFieldOptions(buildFieldOptions(draft.nodesById, (candidate) => isTextCapableFieldNode(candidate)));
+      })
+      .catch(() => {
+        setTextFieldOptions([]);
+      });
+  }, [sourceFormId]);
+
+  return (
+    <Select
+      allowClear
+      showSearch
+      disabled={!sourceFormId}
+      placeholder={sourceFormId ? "请选择选中展示字段" : "请先选择来源表单"}
+      options={textFieldOptions}
+      value={typeof value === "string" && value ? value : undefined}
+      onChange={(nextValue) => onChange(typeof nextValue === "string" ? nextValue : "")}
+      notFoundContent={sourceFormId ? "暂无可选文本字段" : "请先选择来源表单"}
+    />
   );
 }
 

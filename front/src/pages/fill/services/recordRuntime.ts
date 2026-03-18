@@ -80,6 +80,11 @@ export async function loadRuntimeForm(formCode: string) {
   return deserializeFields(response);
 }
 
+export async function loadRuntimeFormById(formId: number) {
+  const response = await request<RuntimeFormResponse>(`/api/runtime/forms/by-id/${formId}`);
+  return deserializeFields(response);
+}
+
 export type RelationRecord = {
   id: number;
   formId: number;
@@ -93,6 +98,61 @@ export type RelationSearchResult = {
   totalCount: number;
   records: RelationRecord[];
 };
+
+function findFieldNodeByServerId(nodesById: NodesById, serverId: string) {
+  return Object.values(nodesById).find(
+    (node) => node.type === "field" && typeof node.serverId === "string" && node.serverId === serverId
+  );
+}
+
+function readOptionLabel(node: Node | undefined, rawValue: unknown) {
+  if (!node || !Array.isArray(node.props.options)) {
+    return null;
+  }
+  const matched = node.props.options.find(
+    (item): item is { label?: unknown; value?: unknown } =>
+      typeof item === "object" && item !== null && String(item.value ?? "") === String(rawValue ?? "")
+  );
+  return typeof matched?.label === "string" ? matched.label : null;
+}
+
+function normalizeComparableTexts(node: Node | undefined, value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => normalizeComparableTexts(node, item));
+  }
+  if (value == null) {
+    return [];
+  }
+  const rawText = String(value).trim();
+  const texts = rawText ? [rawText.toLowerCase(), rawText.replace(/\s+/g, "").toLowerCase()] : [];
+  const optionLabel = readOptionLabel(node, value);
+  if (optionLabel && optionLabel.trim()) {
+    texts.push(optionLabel.trim().toLowerCase(), optionLabel.replace(/\s+/g, "").trim().toLowerCase());
+  }
+  return Array.from(new Set(texts.filter(Boolean)));
+}
+
+export function formatRelationDisplayValue(nodesById: NodesById | undefined, fieldKey: string, value: unknown): string {
+  const fieldNode = nodesById ? findFieldNodeByServerId(nodesById, fieldKey) : undefined;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => formatRelationDisplayValue(nodesById, fieldKey, item))
+      .filter(Boolean)
+      .join("、");
+  }
+  if (value == null) {
+    return "";
+  }
+  return readOptionLabel(fieldNode, value) ?? String(value);
+}
+
+export function getRelationFieldLabel(nodesById: NodesById | undefined, fieldKey: string) {
+  const fieldNode = nodesById ? findFieldNodeByServerId(nodesById, fieldKey) : undefined;
+  if (!fieldNode) {
+    return fieldKey;
+  }
+  return typeof fieldNode.props.label === "string" && fieldNode.props.label.trim() ? fieldNode.props.label : fieldKey;
+}
 
 function toRuntimePayload(data: RecordRuntimeData) {
   return {
@@ -138,31 +198,36 @@ export async function listRelationRecordsByForm(formId: number) {
   return request<RelationRecord[]>(`/api/records/relation/by-form/${formId}`);
 }
 
-function matchesFilter(record: RelationRecord, filter: Record<string, unknown>) {
+function matchesFilter(record: RelationRecord, filter: Record<string, unknown>, sourceNodesById?: NodesById) {
   const fieldKey = typeof filter.fieldKey === "string" ? filter.fieldKey : "";
   const operator = typeof filter.operator === "string" ? filter.operator : "eq";
   const expected = filter.value;
   const actual = record.mainData[fieldKey];
+  const fieldNode = sourceNodesById ? findFieldNodeByServerId(sourceNodesById, fieldKey) : undefined;
 
   if (!fieldKey) {
     return true;
   }
 
   if (operator === "contains") {
-    return String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase());
+    const expectedTexts = normalizeComparableTexts(fieldNode, expected);
+    const actualTexts = normalizeComparableTexts(fieldNode, actual);
+    return expectedTexts.some((expectedText) => actualTexts.some((actualText) => actualText.includes(expectedText)));
   }
 
-  return String(actual ?? "") === String(expected ?? "");
+  const expectedTexts = normalizeComparableTexts(fieldNode, expected);
+  const actualTexts = normalizeComparableTexts(fieldNode, actual);
+  return expectedTexts.some((expectedText) => actualTexts.includes(expectedText));
 }
 
-function matchesKeyword(record: RelationRecord, keyword: string, displayFields: string[]) {
+function matchesKeyword(record: RelationRecord, keyword: string, displayFields: string[], sourceNodesById?: NodesById) {
   if (!keyword.trim()) {
     return true;
   }
   const normalized = keyword.trim().toLowerCase();
   const pool = [
     String(record.id),
-    ...displayFields.map((fieldKey) => String(record.mainData[fieldKey] ?? "")),
+    ...displayFields.map((fieldKey) => formatRelationDisplayValue(sourceNodesById, fieldKey, record.mainData[fieldKey])),
   ];
   return pool.some((value) => value.toLowerCase().includes(normalized));
 }
@@ -172,20 +237,22 @@ export async function searchRelationRecords({
   keyword,
   displayFields,
   filters,
+  sourceNodesById,
 }: {
   sourceFormId: number;
   keyword: string;
   displayFields: string[];
   filters: Array<Record<string, unknown>>;
+  sourceNodesById?: NodesById;
 }): Promise<RelationSearchResult> {
   const records = await listRelationRecordsByForm(sourceFormId);
   return {
     totalCount: records.length,
     records: records.filter((record) => {
-      if (!matchesKeyword(record, keyword, displayFields)) {
+      if (!matchesKeyword(record, keyword, displayFields, sourceNodesById)) {
         return false;
       }
-      return filters.every((filter) => matchesFilter(record, filter));
+      return filters.every((filter) => matchesFilter(record, filter, sourceNodesById));
     }),
   };
 }

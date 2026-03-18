@@ -22,4 +22,9 @@ public class FormRuntimeController {
     public Result<FormRuntimeResponse> current(@PathVariable("formCode") String formCode) {
         return Result.success(formQueryAppService.getPublishedByFormCode(formCode));
     }
+
+    @GetMapping("/by-id/{formId}")
+    public Result<FormRuntimeResponse> currentByFormId(@PathVariable("formId") Long formId) {
+        return Result.success(formQueryAppService.getPublishedByFormId(formId));
+    }
 }

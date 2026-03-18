@@ -14,6 +14,7 @@ export const relationSelectNodeDefinition: ComponentNodeDefinition = {
     helpText: "",
     sourceFormId: "",
     displayFields: [],
+    selectedDisplayField: "",
     filters: [],
     mappings: [],
     columnWidth: 180,
@@ -34,9 +35,15 @@ export const relationSelectNodeDefinition: ComponentNodeDefinition = {
         },
         {
           key: "displayFields",
-          label: "展示字段",
+          label: "列表展示字段",
           target: "props",
           control: "relation-display-fields",
+        },
+        {
+          key: "selectedDisplayField",
+          label: "选中展示字段",
+          target: "props",
+          control: "relation-selected-display-field",
         },
         {
           key: "filters",

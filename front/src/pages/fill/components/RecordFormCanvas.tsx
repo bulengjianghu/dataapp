@@ -42,6 +42,7 @@ function getFieldKey(node: Node) {
 function renderFieldInput(
   node: Node,
   value: unknown,
+  displayValue: string | undefined,
   disabled: boolean,
   onChange: (nextValue: unknown) => void,
   onOpenRelationSelect: () => void
@@ -116,7 +117,7 @@ function renderFieldInput(
           <Input
             readOnly
             disabled={disabled}
-            value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+            value={displayValue ?? (typeof value === "string" || typeof value === "number" ? String(value) : "")}
             placeholder={placeholder || "请选择关联记录"}
           />
           <Button icon={<LinkOutlined />} disabled={disabled} onClick={onOpenRelationSelect}>
@@ -135,12 +136,14 @@ function MainFieldRenderer({
   readonly,
   onMainValueChange,
   onOpenRelationSelect,
+  getRelationDisplayValue,
 }: {
   node: Node;
   data: Record<string, unknown>;
   readonly: boolean;
   onMainValueChange: (fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node) => void;
+  getRelationDisplayValue: (node: Node) => string | undefined;
 }) {
   const fieldKey = getFieldKey(node);
   const label = getFieldLabel(node);
@@ -155,6 +158,7 @@ function MainFieldRenderer({
       {renderFieldInput(
         node,
         data[fieldKey],
+        getRelationDisplayValue(node),
         readonly,
         (nextValue) => onMainValueChange(fieldKey, nextValue),
         () => onOpenRelationSelect(node)
@@ -173,6 +177,7 @@ function DetailTableRuntimeBlock({
   onRemoveDetailRow,
   onDetailValueChange,
   onOpenRelationSelect,
+  getRelationDisplayValue,
 }: {
   node: Node;
   nodesById: NodesById;
@@ -182,10 +187,10 @@ function DetailTableRuntimeBlock({
   onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
   onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node, detailTableKey: string, rowIndex: number) => void;
+  getRelationDisplayValue: (node: Node, detailTableKey: string, rowIndex: number) => string | undefined;
 }) {
   const detailTableKey = getFieldKey(node);
   const title = (node.props.title as string | undefined) ?? "明细表";
-  const description = typeof node.props.description === "string" ? node.props.description : "";
   const allowAddRow = node.props.allowAddRow !== false;
   const allowDeleteRow = node.props.allowDeleteRow !== false;
   const defaultRowCount = typeof node.props.defaultRowCount === "number" ? node.props.defaultRowCount : 1;
@@ -205,6 +210,7 @@ function DetailTableRuntimeBlock({
           renderFieldInput(
             columnNode,
             rows[rowIndex]?.[fieldKey],
+            getRelationDisplayValue(columnNode, detailTableKey, rowIndex),
             readonly,
             (nextValue) => onDetailValueChange(detailTableKey, rowIndex, fieldKey, nextValue),
             () => onOpenRelationSelect(columnNode, detailTableKey, rowIndex)
@@ -253,7 +259,6 @@ function DetailTableRuntimeBlock({
       bodyStyle={{ paddingTop: 12 }}
     >
       <Flex vertical gap={12}>
-        {description ? <Typography.Text type="secondary">{description}</Typography.Text> : null}
         <Table
           size="small"
           pagination={false}
@@ -277,6 +282,7 @@ function RuntimeFillNode({
   onRemoveDetailRow,
   onDetailValueChange,
   onOpenRelationSelect,
+  getRelationDisplayValue,
 }: {
   node: Node;
   nodesById: NodesById;
@@ -287,6 +293,7 @@ function RuntimeFillNode({
   onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
   onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
+  getRelationDisplayValue: (node: Node, detailTableKey?: string, rowIndex?: number) => string | undefined;
 }) {
   if (node.type === "container") {
     return (
@@ -309,6 +316,7 @@ function RuntimeFillNode({
                 onRemoveDetailRow={onRemoveDetailRow}
                 onDetailValueChange={onDetailValueChange}
                 onOpenRelationSelect={onOpenRelationSelect}
+                getRelationDisplayValue={getRelationDisplayValue}
               />
             </div>
           );
@@ -328,6 +336,7 @@ function RuntimeFillNode({
         onRemoveDetailRow={onRemoveDetailRow}
         onDetailValueChange={onDetailValueChange}
         onOpenRelationSelect={(relationNode, detailTableKey, rowIndex) => onOpenRelationSelect(relationNode, detailTableKey, rowIndex)}
+        getRelationDisplayValue={(relationNode, detailTableKey, rowIndex) => getRelationDisplayValue(relationNode, detailTableKey, rowIndex)}
       />
     );
   }
@@ -343,6 +352,7 @@ function RuntimeFillNode({
       readonly={readonly}
       onMainValueChange={onMainValueChange}
       onOpenRelationSelect={(relationNode) => onOpenRelationSelect(relationNode)}
+      getRelationDisplayValue={(relationNode) => getRelationDisplayValue(relationNode)}
     />
   );
 }
@@ -357,6 +367,7 @@ export function RecordFormCanvas({
   onRemoveDetailRow,
   onDetailValueChange,
   onOpenRelationSelect,
+  getRelationDisplayValue,
 }: {
   nodesById: NodesById;
   pageChildren: string[];
@@ -367,6 +378,7 @@ export function RecordFormCanvas({
   onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
   onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
+  getRelationDisplayValue: (node: Node, detailTableKey?: string, rowIndex?: number) => string | undefined;
 }) {
   return (
     <ContainerLayout hasChildren={pageChildren.length > 0} emptyText="页面暂无字段" emptyFallback={<Empty description="页面暂无字段" />}>
@@ -388,6 +400,7 @@ export function RecordFormCanvas({
               onRemoveDetailRow={onRemoveDetailRow}
               onDetailValueChange={onDetailValueChange}
               onOpenRelationSelect={onOpenRelationSelect}
+              getRelationDisplayValue={getRelationDisplayValue}
             />
           </div>
         );

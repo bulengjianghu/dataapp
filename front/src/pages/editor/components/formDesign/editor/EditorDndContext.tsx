@@ -12,6 +12,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type Modifier,
 } from "@dnd-kit/core";
 import { Card, Space, Tag, Typography } from "antd";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
@@ -98,6 +99,12 @@ function getDroppablePriority(collision: Collision, nodesById: ReturnType<typeof
   return 0;
 }
 
+const nodeOverlayOffsetModifier: Modifier = ({ transform }) => ({
+  ...transform,
+  x: transform.x + 28,
+  y: transform.y - 18,
+});
+
 export function EditorDndContextProvider({ children }: { children: ReactNode }) {
   const dispatch = useAppDispatch();
   const nodesById = useAppSelector(selectNodesById);
@@ -124,6 +131,7 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
   };
 
   const status = useMemo(() => ({ activeId, overId, activeLabel }), [activeId, overId, activeLabel]);
+  const activeNodeId = getActiveNodeId(activeId);
 
   const onDragStart = (event: DragStartEvent) => {
     setDisableDropAnimation(false);
@@ -238,16 +246,20 @@ export function EditorDndContextProvider({ children }: { children: ReactNode }) 
         onDragEnd={onDragEnd}
       >
         {children}
-        <DragOverlay zIndex={2000} dropAnimation={disableDropAnimation ? null : undefined}>
+        <DragOverlay
+          zIndex={2000}
+          dropAnimation={disableDropAnimation ? null : undefined}
+          modifiers={activeNodeId ? [nodeOverlayOffsetModifier] : undefined}
+        >
           {getPalettePreview(activeId?.startsWith("palette:") ? activeId.slice("palette:".length) : undefined) ? (
             <div className="editor-dnd-overlay editor-dnd-overlay--palette">
               <PaletteTile
                 item={getPalettePreview(activeId?.startsWith("palette:") ? activeId.slice("palette:".length) : undefined)!}
               />
             </div>
-          ) : getActiveNodeId(activeId) && nodesById[getActiveNodeId(activeId)!] ? (
+          ) : activeNodeId && nodesById[activeNodeId] ? (
             (() => {
-              const activeNode = nodesById[getActiveNodeId(activeId)!];
+              const activeNode = nodesById[activeNodeId];
 
               if (activeNode.type === "container" || activeNode.type === "detail_table") {
                 return (

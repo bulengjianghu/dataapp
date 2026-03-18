@@ -13,6 +13,7 @@ function EditorNodeCardInner({
   node,
   depth,
   selected,
+  dropTarget = false,
   onSelect,
   onDelete,
   interactive = true,
@@ -20,6 +21,7 @@ function EditorNodeCardInner({
   node: Node;
   depth: number;
   selected: boolean;
+  dropTarget?: boolean;
   onSelect: (nodeId: string) => void;
   onDelete?: (nodeId: string) => void;
   interactive?: boolean;
@@ -41,6 +43,7 @@ function EditorNodeCardInner({
     },
   });
   const helpText = typeof node.props.helpText === "string" ? node.props.helpText : "";
+  const effectiveDropTarget = dropTarget || isOver;
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
     onSelect(node.id);
@@ -65,6 +68,7 @@ function EditorNodeCardInner({
         className={[
           "editor-node-card",
           depthClass(depth),
+          effectiveDropTarget ? "is-drop-target" : "",
           isDragging ? "is-dragging" : "",
           !interactive ? "is-overlay" : "",
         ]
@@ -79,7 +83,7 @@ function EditorNodeCardInner({
                 *
               </span>
             ) : null}
-            <div className={["editor-node-card__preview", isOver ? "is-over" : ""].filter(Boolean).join(" ")}>
+            <div className={["editor-node-card__preview", effectiveDropTarget ? "is-over" : ""].filter(Boolean).join(" ")}>
               {renderEditorNodePreview(node)}
             </div>
           </div>
@@ -100,5 +104,6 @@ export const EditorNodeCard = memo(
     previousProps.node === nextProps.node &&
     previousProps.depth === nextProps.depth &&
     previousProps.selected === nextProps.selected &&
+    previousProps.dropTarget === nextProps.dropTarget &&
     previousProps.interactive === nextProps.interactive
 );

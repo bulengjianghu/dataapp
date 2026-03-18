@@ -31,7 +31,7 @@ export function NodeChildrenRenderer({
 }) {
   const { active, over } = useDndContext();
   const activeSource = active?.data.current?.source;
-  const showInsertMarkers = activeSource === "node" || activeSource === "palette";
+  const showDropTargetState = activeSource === "node" || activeSource === "palette";
 
   if (childIds.length === 0) {
     return <Typography.Text type="secondary">{emptyText}</Typography.Text>;
@@ -55,17 +55,18 @@ export function NodeChildrenRenderer({
           layoutMode === "detail-table"
             ? { width: `${columnWidth}px`, minWidth: `${columnWidth}px`, flex: "0 0 auto" }
             : { gridColumn: `span ${span}` };
+        const isNodeDropTarget =
+          over?.data.current?.type === "node" &&
+          over.data.current.nodeId === childId &&
+          showDropTargetState;
         const entryClassName = [
           "editor-node-entry",
           depthClass(depth),
           layoutMode === "detail-table" ? "editor-node-entry--detail-column" : "",
+          isNodeDropTarget ? "is-drop-target" : "",
         ]
           .filter(Boolean)
           .join(" ");
-        const showInsertBefore =
-          over?.data.current?.type === "node" &&
-          over.data.current.nodeId === childId &&
-          showInsertMarkers;
 
         if (node.type !== "container" && node.type !== "detail_table") {
           return (
@@ -74,11 +75,11 @@ export function NodeChildrenRenderer({
               className={entryClassName}
               style={entryStyle}
             >
-              {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
               <EditorNodeCard
                 node={node}
                 depth={depth}
                 selected={selectedNodeKey === node.id}
+                dropTarget={isNodeDropTarget}
                 onSelect={onSelect}
                 onDelete={onDelete}
               />
@@ -92,7 +93,6 @@ export function NodeChildrenRenderer({
             className={entryClassName}
             style={entryStyle}
           >
-            {showInsertBefore ? <div className="editor-node-insert-marker" aria-hidden="true" /> : null}
             <ContainerEditorWrapper
               node={node}
               depth={depth}

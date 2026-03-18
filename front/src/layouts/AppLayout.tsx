@@ -11,6 +11,7 @@ export function AppLayout() {
   const location = useLocation();
   const [messageApi, contextHolder] = message.useMessage();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const hideHeader = location.pathname === "/editor";
 
   useEffect(() => {
     const token = window.localStorage.getItem("dataapp.accessToken");
@@ -29,36 +30,38 @@ export function AppLayout() {
   return (
     <Layout className="app-layout">
       {contextHolder}
-      <Header className="app-layout__header">
-        <div className="app-layout__brand" onClick={() => navigate("/forms")} role="button" tabIndex={0}>
-          <Typography.Text className="app-layout__brand-text">DataApp</Typography.Text>
-        </div>
-        <Space>
-          {currentUser ? (
-            <>
-              <Typography.Text className="app-layout__user">{currentUser.username}</Typography.Text>
+      {hideHeader ? null : (
+        <Header className="app-layout__header">
+          <div className="app-layout__brand" onClick={() => navigate("/forms")} role="button" tabIndex={0}>
+            <Typography.Text className="app-layout__brand-text">DataApp</Typography.Text>
+          </div>
+          <Space>
+            {currentUser ? (
+              <>
+                <Typography.Text className="app-layout__user">{currentUser.username}</Typography.Text>
+                <Button
+                  icon={<LogoutOutlined />}
+                  onClick={() => {
+                    logout();
+                    setCurrentUser(null);
+                    messageApi.success("已退出登录");
+                    navigate("/forms");
+                  }}
+                >
+                  退出
+                </Button>
+              </>
+            ) : (
               <Button
-                icon={<LogoutOutlined />}
-                onClick={() => {
-                  logout();
-                  setCurrentUser(null);
-                  messageApi.success("已退出登录");
-                  navigate("/forms");
-                }}
+                icon={<LoginOutlined />}
+                onClick={() => navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
               >
-                退出
+                登录
               </Button>
-            </>
-          ) : (
-            <Button
-              icon={<LoginOutlined />}
-              onClick={() => navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
-            >
-              登录
-            </Button>
-          )}
-        </Space>
-      </Header>
+            )}
+          </Space>
+        </Header>
+      )}
       <Content className="app-layout__content">
         <Outlet />
       </Content>

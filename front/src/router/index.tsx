@@ -3,7 +3,6 @@ import { AppLayout } from "../layouts/AppLayout";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { FormEditorPage } from "../pages/editor/FormEditorPage";
 import { FormListPage } from "../pages/forms/FormListPage";
-import { FormPreviewPage } from "../pages/preview/FormPreviewPage";
 import { RecordListPage } from "../pages/records/RecordListPage";
 
 export const router = createBrowserRouter([
@@ -22,10 +21,6 @@ export const router = createBrowserRouter([
       {
         path: "editor",
         element: <FormEditorPage />,
-      },
-      {
-        path: "preview",
-        element: <FormPreviewPage />,
       },
       {
         path: "login",

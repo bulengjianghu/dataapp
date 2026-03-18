@@ -17,7 +17,6 @@ export const relationSelectNodeDefinition: ComponentNodeDefinition = {
     selectedDisplayField: "",
     filters: [],
     mappings: [],
-    columnWidth: 180,
   }),
   propertyGroups: [
     baseFieldGroup,
@@ -69,15 +68,6 @@ export const relationSelectNodeDefinition: ComponentNodeDefinition = {
           target: "props",
           control: "input",
           placeholder: "请输入占位提示",
-        },
-        {
-          key: "columnWidth",
-          label: "列宽",
-          target: "props",
-          control: "number",
-          min: 80,
-          max: 600,
-          step: 10,
         },
       ],
     },

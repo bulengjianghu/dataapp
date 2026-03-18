@@ -1,7 +1,7 @@
 import { Card, Empty, Flex } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../../store/hooks";
-import { selectFormId, selectSelectedNode } from "../../../../store/selectors/editorSelectors";
+import { selectFormId, selectNodesById, selectSelectedNode } from "../../../../store/selectors/editorSelectors";
 import { updateNodeLayout, updateNodeProps } from "../../../../store/slices/formSchemaSlice";
 import { PropertyGroupRenderer } from "./PropertyGroupRenderer";
 import { resolveNodePropertySchema } from "./PropertySchemaResolver";
@@ -11,6 +11,7 @@ export function PropertyPanel() {
   const dispatch = useAppDispatch();
   const selectedNode = useAppSelector(selectSelectedNode);
   const currentFormId = useAppSelector(selectFormId);
+  const nodesById = useAppSelector(selectNodesById);
   const [formOptions, setFormOptions] = useState<Array<{ label: string; value: string }>>([]);
 
   useEffect(() => {
@@ -32,13 +33,47 @@ export function PropertyPanel() {
       return null;
     }
     const resolved = resolveNodePropertySchema(selectedNode);
+    const parentNode = selectedNode.parentId ? nodesById[selectedNode.parentId] : null;
+    const isDetailColumn = selectedNode.type === "field" && parentNode?.type === "detail_table";
+
+    const groups = resolved.groups
+      .map((group) => {
+        if (!isDetailColumn && group.key !== "layout") {
+          return group;
+        }
+
+        if (isDetailColumn && group.key === "layout") {
+          return {
+            ...group,
+            title: "列布局",
+            fields: [
+              {
+                key: "columnWidth",
+                label: "列宽",
+                target: "props" as const,
+                control: "number" as const,
+                min: 80,
+                max: 600,
+                step: 10,
+              },
+            ],
+          };
+        }
+
+        return group;
+      })
+      .filter((group) => !(isDetailColumn && group.key === "relation-select-display"));
+
     if (selectedNode.props.component !== "relation-select") {
-      return resolved;
+      return {
+        ...resolved,
+        groups,
+      };
     }
 
     return {
       ...resolved,
-      groups: resolved.groups.map((group) => ({
+      groups: groups.map((group) => ({
         ...group,
         fields: group.fields.map((field) =>
           field.key === "sourceFormId"
@@ -50,7 +85,7 @@ export function PropertyPanel() {
         ),
       })),
     };
-  }, [formOptions, selectedNode]);
+  }, [formOptions, nodesById, selectedNode]);
 
   return (
     <Card title="属性面板" size="small" className="editor-property-panel">

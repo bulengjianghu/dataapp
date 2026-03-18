@@ -1,5 +1,5 @@
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Badge, Button, Space, Tag, Typography, message } from "antd";
+import { Badge, Button, Modal, Space, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
@@ -17,6 +17,7 @@ import { PAGE_NODE_ID } from "../../../types/schema/node";
 import { ComponentPalette } from "./leftPanel/ComponentPalette";
 import { EditorDndContextProvider } from "./formDesign/editor/EditorDndContext";
 import { FormEditorWrapper } from "./formDesign/editor/FormEditorWrapper";
+import { FormPreviewRenderer } from "./formDesign/runtime/FormPreviewRenderer";
 import { PropertyPanel } from "./propertyPanel/PropertyPanel";
 import {
   createFormOnServer,
@@ -84,6 +85,7 @@ function EditorShellContent() {
   const [initializing, setInitializing] = useState(true);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [autoSavePending, setAutoSavePending] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const hasSavedDraft = Boolean(formId) || lastSavedAt !== null;
   const latestStateRef = useRef({
     dirty,
@@ -311,7 +313,7 @@ function EditorShellContent() {
           <Badge status={dirty ? "processing" : "success"} />
           <Typography.Text type="secondary">{saveSummary}</Typography.Text>
           <Tag color={saveTag.color}>{saveTag.label}</Tag>
-          <Button disabled={!formId} onClick={() => navigate(formId ? `/preview?formId=${formId}` : "/preview")}>
+          <Button disabled={initializing} onClick={() => setPreviewOpen(true)}>
             预览
           </Button>
           <Button type="primary" loading={publishing} onClick={() => void publishForm()}>
@@ -336,6 +338,17 @@ function EditorShellContent() {
           <PropertyPanel />
         </section>
       </main>
+
+      <Modal
+        title="填报预览"
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        footer={null}
+        width={1100}
+        destroyOnClose
+      >
+        <FormPreviewRenderer />
+      </Modal>
     </div>
   );
 }

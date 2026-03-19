@@ -284,4 +284,31 @@ class InteractionRuleCommandAppServiceTest {
         assertThat(persistenceCaptor.getValue().triggerBindings()).hasSize(1);
         assertThat(persistenceCaptor.getValue().referenceIndexes()).isNotEmpty();
     }
+
+    @Test
+    void shouldDeleteInteractionRule() {
+        InteractionRuleCommandAppService service = new InteractionRuleCommandAppService(
+            interactionRuleRepository,
+            new ObjectMapper()
+        );
+        InteractionRuleDefinition definition = new InteractionRuleDefinition(
+            2001L,
+            1001L,
+            "IR-2001",
+            "金额联动",
+            "FIELD_CHANGE_MAIN",
+            "FORM",
+            "ACTIVE",
+            4001L,
+            ""
+        );
+        when(interactionRuleRepository.findDefinitionById(1001L, 2001L)).thenReturn(definition);
+
+        service.delete(1001L, 2001L);
+
+        ArgumentCaptor<InteractionRuleDefinition> definitionCaptor = ArgumentCaptor.forClass(InteractionRuleDefinition.class);
+        verify(interactionRuleRepository).delete(definitionCaptor.capture());
+        assertThat(definitionCaptor.getValue().getStatus()).isEqualTo("DELETED");
+        assertThat(definitionCaptor.getValue().getId()).isEqualTo(2001L);
+    }
 }

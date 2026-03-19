@@ -150,6 +150,12 @@ export async function createInteractionRuleOnServer(formId: string) {
   return deserializeDraft(created);
 }
 
+export async function deleteInteractionRuleOnServer(formId: string, ruleId: string) {
+  await request<void>(`/api/admin/forms/${formId}/interaction-rules/${ruleId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function loadInteractionRuleDraftFromServer(formId: string, ruleId: string) {
   const draft = await request<InteractionRuleDraftResponse>(
     `/api/admin/forms/${formId}/interaction-rules/${ruleId}/draft`

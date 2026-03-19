@@ -149,6 +149,12 @@ public class InteractionRuleCommandAppService {
         );
     }
 
+    @Transactional
+    public void delete(Long formId, Long ruleId) {
+        InteractionRuleDefinition definition = requireDefinition(formId, ruleId);
+        interactionRuleRepository.delete(definition.delete());
+    }
+
     private InteractionRuleDefinition requireDefinition(Long formId, Long ruleId) {
         InteractionRuleDefinition definition = interactionRuleRepository.findDefinitionById(formId, ruleId);
         if (definition == null) {

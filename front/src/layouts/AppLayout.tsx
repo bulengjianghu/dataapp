@@ -11,7 +11,7 @@ export function AppLayout() {
   const location = useLocation();
   const [messageApi, contextHolder] = message.useMessage();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const hideHeader = location.pathname === "/editor";
+  const hideHeader = location.pathname.startsWith("/editor");
 
   useEffect(() => {
     const token = window.localStorage.getItem("dataapp.accessToken");

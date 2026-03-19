@@ -11,6 +11,7 @@ import com.dataapp.rule.interfaces.dto.InteractionRuleValidationResponse;
 import com.dataapp.rule.interfaces.dto.SaveInteractionRuleDraftRequest;
 import com.dataapp.shared.kernel.response.Result;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -93,5 +94,14 @@ public class InteractionRuleAdminController {
         @PathVariable("ruleId") Long ruleId
     ) {
         return Result.success(interactionRuleQueryAppService.getPublished(formId, ruleId));
+    }
+
+    @DeleteMapping("/{ruleId}")
+    public Result<Void> delete(
+        @PathVariable("formId") Long formId,
+        @PathVariable("ruleId") Long ruleId
+    ) {
+        interactionRuleCommandAppService.delete(formId, ruleId);
+        return Result.success(null);
     }
 }

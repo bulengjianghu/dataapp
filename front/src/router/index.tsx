@@ -1,10 +1,25 @@
+import { Suspense, lazy } from "react";
+import { Spin } from "antd";
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "../layouts/AppLayout";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { FormEditorPage } from "../pages/editor/FormEditorPage";
 import { FormListPage } from "../pages/forms/FormListPage";
 import { RecordListPage } from "../pages/records/RecordListPage";
-import { InteractionRulePage } from "../pages/rules/InteractionRulePage";
+
+const InteractionRulePage = lazy(() =>
+  import("../pages/rules/InteractionRulePage").then((module) => ({
+    default: module.InteractionRulePage,
+  }))
+);
+
+function RouterLoadingFallback() {
+  return (
+    <div style={{ minHeight: "50vh", display: "grid", placeItems: "center" }}>
+      <Spin size="large" />
+    </div>
+  );
+}
 
 export const router = createBrowserRouter([
   {
@@ -25,7 +40,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "editor/rules",
-        element: <InteractionRulePage />,
+        element: (
+          <Suspense fallback={<RouterLoadingFallback />}>
+            <InteractionRulePage />
+          </Suspense>
+        ),
       },
       {
         path: "login",

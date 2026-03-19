@@ -144,6 +144,12 @@ public class InteractionRuleRepositoryImpl implements InteractionRuleRepository 
         );
     }
 
+    @Override
+    public void delete(InteractionRuleDefinition definition) {
+        interactionRuleMapper.softDeleteDraftByRuleId(definition.getId());
+        interactionRuleMapper.softDeleteDefinition(toDefinitionPO(definition));
+    }
+
     private InteractionRuleDraftSummary toSummary(RuleDraftSummaryPO po) {
         return new InteractionRuleDraftSummary(
             po.getRuleId(),

@@ -26,4 +26,6 @@ public interface InteractionRuleRepository {
     void saveDraft(InteractionRuleDraft draft);
 
     void savePublishedSnapshot(InteractionRulePublishPersistence persistence);
+
+    void delete(InteractionRuleDefinition definition);
 }

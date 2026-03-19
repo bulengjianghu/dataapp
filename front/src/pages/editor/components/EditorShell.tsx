@@ -1,5 +1,5 @@
-import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Badge, Button, Modal, Space, Tag, Typography, message } from "antd";
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { Badge, Button, Modal, Popconfirm, Skeleton, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
@@ -26,6 +26,12 @@ import {
   saveDraftToServer,
   validateBeforePublish,
 } from "../services/formPersistence";
+import {
+  createInteractionRuleOnServer,
+  deleteInteractionRuleOnServer,
+  listInteractionRulesOnServer,
+  type InteractionRuleSummary,
+} from "../../rules/services/interactionRules";
 
 const AUTO_SAVE_DELAY = 1500;
 
@@ -86,6 +92,10 @@ function EditorShellContent() {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [autoSavePending, setAutoSavePending] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [ruleListOpen, setRuleListOpen] = useState(false);
+  const [loadingRuleList, setLoadingRuleList] = useState(false);
+  const [creatingRule, setCreatingRule] = useState(false);
+  const [ruleList, setRuleList] = useState<InteractionRuleSummary[]>([]);
   const hasSavedDraft = Boolean(formId) || lastSavedAt !== null;
   const latestStateRef = useRef({
     dirty,
@@ -299,6 +309,60 @@ function EditorShellContent() {
     };
   }, []);
 
+  const loadRuleList = async (targetFormId: string) => {
+    setLoadingRuleList(true);
+    try {
+      const items = await listInteractionRulesOnServer(targetFormId);
+      setRuleList(items);
+      return items;
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "加载交互规则列表失败");
+      return [];
+    } finally {
+      setLoadingRuleList(false);
+    }
+  };
+
+  const openRuleList = async () => {
+    if (!formId) {
+      messageApi.error("请先保存表单草稿后再配置交互规则");
+      return;
+    }
+    setRuleListOpen(true);
+    await loadRuleList(formId);
+  };
+
+  const handleCreateRule = async () => {
+    if (!formId) {
+      messageApi.error("请先保存表单草稿后再配置交互规则");
+      return;
+    }
+    setCreatingRule(true);
+    try {
+      const created = await createInteractionRuleOnServer(formId);
+      setRuleListOpen(false);
+      navigate(`/editor/rules?formId=${formId}&ruleId=${created.meta.ruleId}`);
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "创建交互规则失败");
+    } finally {
+      setCreatingRule(false);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId: string) => {
+    if (!formId) {
+      messageApi.error("表单尚未初始化");
+      return;
+    }
+    try {
+      await deleteInteractionRuleOnServer(formId, ruleId);
+      messageApi.success("规则已删除");
+      await loadRuleList(formId);
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "删除交互规则失败");
+    }
+  };
+
   return (
     <div className="editor-shell">
       {contextHolder}
@@ -313,7 +377,7 @@ function EditorShellContent() {
           <Badge status={dirty ? "processing" : "success"} />
           <Typography.Text type="secondary">{saveSummary}</Typography.Text>
           <Tag color={saveTag.color}>{saveTag.label}</Tag>
-          <Button disabled={initializing || !formId} onClick={() => navigate(`/editor/rules?formId=${formId}`)}>
+          <Button disabled={initializing || !formId} onClick={() => void openRuleList()}>
             交互规则
           </Button>
           <Button disabled={initializing} onClick={() => setPreviewOpen(true)}>
@@ -341,6 +405,102 @@ function EditorShellContent() {
           <PropertyPanel />
         </section>
       </main>
+
+      <Modal
+        title="交互规则"
+        open={ruleListOpen}
+        onCancel={() => setRuleListOpen(false)}
+        width={720}
+        destroyOnClose
+        footer={
+          <Space>
+            <Button onClick={() => setRuleListOpen(false)}>关闭</Button>
+            <Button type="primary" icon={<PlusOutlined />} loading={creatingRule} onClick={() => void handleCreateRule()}>
+              新增规则
+            </Button>
+          </Space>
+        }
+      >
+        {loadingRuleList ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : (
+          <div className="editor-rule-list">
+            <Table<InteractionRuleSummary>
+              className="editor-rule-table"
+              rowKey="ruleId"
+              size="small"
+              pagination={false}
+              dataSource={ruleList}
+              locale={{ emptyText: "当前表单还没有交互规则" }}
+              columns={[
+                {
+                  title: "规则名称",
+                  dataIndex: "ruleName",
+                  key: "ruleName",
+                  ellipsis: true,
+                  render: (_, item) => (
+                    <Space size={8} wrap>
+                      <Typography.Text strong>{item.ruleName || "未命名规则"}</Typography.Text>
+                      <Tag color={item.enabled ? "green" : "default"}>{item.enabled ? "启用" : "停用"}</Tag>
+                    </Space>
+                  ),
+                },
+                {
+                  title: "规则编码",
+                  dataIndex: "ruleCode",
+                  key: "ruleCode",
+                  width: 160,
+                  ellipsis: true,
+                  render: (value: string) => <Typography.Text type="secondary">{value}</Typography.Text>,
+                },
+                {
+                  title: "事件",
+                  dataIndex: "eventType",
+                  key: "eventType",
+                  width: 150,
+                  ellipsis: true,
+                  render: (value: string) => <Typography.Text type="secondary">{value}</Typography.Text>,
+                },
+                {
+                  title: "操作",
+                  key: "actions",
+                  width: 110,
+                  align: "center",
+                  render: (_, item) => (
+                    <Space size={4}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        aria-label={`编辑规则 ${item.ruleName || item.ruleCode}`}
+                        onClick={() => {
+                          setRuleListOpen(false);
+                          navigate(`/editor/rules?formId=${formId}&ruleId=${item.ruleId}`);
+                        }}
+                      />
+                      <Popconfirm
+                        title="确认删除？"
+                        description="删除后不可恢复"
+                        okText="删除"
+                        cancelText="取消"
+                        onConfirm={() => void handleDeleteRule(item.ruleId)}
+                      >
+                        <Button
+                          danger
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          aria-label={`删除规则 ${item.ruleName || item.ruleCode}`}
+                        />
+                      </Popconfirm>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        )}
+      </Modal>
 
       <Modal
         title="填报预览"

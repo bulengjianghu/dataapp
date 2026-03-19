@@ -53,6 +53,18 @@ public interface InteractionRuleMapper {
         """)
     int updateDefinition(RuleDefinitionPO ruleDefinitionPO);
 
+    @Update("""
+        update rule_definition
+        set status = #{status},
+            deleted = true,
+            updated_by = 1,
+            updated_at = now()
+        where id = #{id}
+          and form_id = #{formId}
+          and deleted = false
+        """)
+    int softDeleteDefinition(RuleDefinitionPO ruleDefinitionPO);
+
     @Select("""
         select rd.id as rule_id,
                rd.rule_code,
@@ -102,6 +114,16 @@ public interface InteractionRuleMapper {
             deleted = false
         """)
     int upsertDraft(RuleDraftPO ruleDraftPO);
+
+    @Update("""
+        update rule_draft
+        set deleted = true,
+            updated_by = 1,
+            updated_at = now()
+        where rule_id = #{ruleId}
+          and deleted = false
+        """)
+    int softDeleteDraftByRuleId(Long ruleId);
 
     @Select("select coalesce(max(version_no), 0) from rule_version where rule_id = #{ruleId}")
     Integer selectMaxVersionNo(Long ruleId);

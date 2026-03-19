@@ -35,6 +35,69 @@ function collectReferenceValues(nodes: RuleGraphNode[], key: string) {
   );
 }
 
+function findReachableNodeIds(graphState: InteractionRuleGraphState, startNodeId: string) {
+  const visited = new Set<string>();
+  const queue = [startNodeId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    graphState.graph.edges
+      .filter((edge) => edge.source === current)
+      .forEach((edge) => {
+        if (!visited.has(edge.target)) {
+          queue.push(edge.target);
+        }
+      });
+  }
+  return visited;
+}
+
+function buildStepPlan(graphState: InteractionRuleGraphState, triggerId: string) {
+  const reachable = findReachableNodeIds(graphState, triggerId);
+  const outgoingBySource = new Map<string, InteractionRuleGraphState["graph"]["edges"]>();
+  graphState.graph.edges.forEach((edge) => {
+    const current = outgoingBySource.get(edge.source) ?? [];
+    current.push(edge);
+    outgoingBySource.set(edge.source, current);
+  });
+
+  const plan: Array<Record<string, unknown>> = [];
+  const visited = new Set<string>([triggerId]);
+  const queue = [...(outgoingBySource.get(triggerId) ?? []).map((edge) => edge.target)];
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    if (!nodeId || visited.has(nodeId) || !reachable.has(nodeId)) {
+      continue;
+    }
+    visited.add(nodeId);
+    const node = graphState.graph.nodes.find((item) => item.id === nodeId);
+    if (!node || node.type === "trigger") {
+      continue;
+    }
+    const outgoing = outgoingBySource.get(nodeId) ?? [];
+    plan.push({
+      id: node.id,
+      type: node.type,
+      data: node.data,
+      next: outgoing.map((edge) => ({
+        target: edge.target,
+        branch: edge.branch ?? "success",
+      })),
+    });
+    outgoing.forEach((edge) => {
+      if (!visited.has(edge.target)) {
+        queue.push(edge.target);
+      }
+    });
+  }
+
+  return { reachable, plan };
+}
+
 export function precompileInteractionRule(params: {
   ruleId: string;
   eventType: InteractionEventType;
@@ -47,7 +110,6 @@ export function precompileInteractionRule(params: {
   compiledJson: Record<string, unknown>;
 } {
   const triggerNodes = params.graphState.graph.nodes.filter((node) => node.type === "trigger");
-  const executableNodes = params.graphState.graph.nodes.filter((node) => node.type !== "trigger");
   const diagnostics: RuleGraphDiagnostic[] = [];
 
   if (triggerNodes.length === 0) {
@@ -66,7 +128,7 @@ export function precompileInteractionRule(params: {
       message: "当前画布存在多个触发器，发布时将以第一个触发器为准。",
     });
   }
-  if (executableNodes.length === 0) {
+  if (params.graphState.graph.nodes.filter((node) => node.type !== "trigger").length === 0) {
     diagnostics.push({
       id: "steps_missing",
       level: "error",
@@ -76,6 +138,35 @@ export function precompileInteractionRule(params: {
   }
 
   const triggerNode = triggerNodes[0];
+  const { reachable, plan } = triggerNode
+    ? buildStepPlan(params.graphState, triggerNode.id)
+    : { reachable: new Set<string>(), plan: [] };
+
+  if (triggerNode && plan.length === 0) {
+    diagnostics.push({
+      id: "trigger_dead_end",
+      level: "error",
+      nodeId: triggerNode.id,
+      code: "trigger_dead_end",
+      message: "触发器没有连到任何可执行节点。",
+    });
+  }
+
+  params.graphState.graph.nodes.forEach((node) => {
+    if (!triggerNode || node.id === triggerNode.id) {
+      return;
+    }
+    if (!reachable.has(node.id)) {
+      diagnostics.push({
+        id: `orphan_${node.id}`,
+        level: "warning",
+        nodeId: node.id,
+        code: "orphan_node",
+        message: "该节点未接入触发主链路，不会进入最终执行计划。",
+      });
+    }
+  });
+
   const references: RuleReferenceSummary = {
     fields: collectReferenceValues(params.graphState.graph.nodes, "fieldKey"),
     detailTables: collectReferenceValues(params.graphState.graph.nodes, "detailTableKey"),
@@ -94,12 +185,7 @@ export function precompileInteractionRule(params: {
           triggerScope: resolveTriggerScope(params.eventType),
           triggerTarget,
           priority: params.priority,
-          steps: executableNodes.map((node, index) => ({
-            id: node.id,
-            type: node.type,
-            order: index,
-            data: node.data,
-          })),
+          steps: plan.map((step, index) => ({ ...step, order: index })),
           failurePolicy: "continue",
           references,
         };

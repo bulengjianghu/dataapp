@@ -22,6 +22,7 @@ public class InteractionRuleDefinition extends AggregateRoot<Long> {
 
     private static final String DRAFT_STATUS = "DRAFT";
     private static final String ACTIVE_STATUS = "ACTIVE";
+    private static final String DELETED_STATUS = "DELETED";
 
     private final Long id;
     private final Long formId;
@@ -149,6 +150,20 @@ public class InteractionRuleDefinition extends AggregateRoot<Long> {
                 now
             );
         return new DraftSaveResult(updatedDefinition, nextDraft);
+    }
+
+    public InteractionRuleDefinition delete() {
+        return new InteractionRuleDefinition(
+            id,
+            formId,
+            ruleCode,
+            ruleName,
+            eventType,
+            scopeType,
+            DELETED_STATUS,
+            currentVersionId,
+            description
+        );
     }
 
     public RuleValidationResult validateForPublish(

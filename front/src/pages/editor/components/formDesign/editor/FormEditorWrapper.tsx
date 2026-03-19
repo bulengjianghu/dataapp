@@ -1,5 +1,5 @@
 import { RedoOutlined, UndoOutlined } from "@ant-design/icons";
-import { Button, Card, Empty, Space } from "antd";
+import { Button, Card, Empty, Space, Tooltip } from "antd";
 import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "../../../../../store/hooks";
 import {
@@ -26,17 +26,28 @@ export function FormEditorWrapper({ undoDisabled, redoDisabled, onUndo, onRedo }
   const nodesById = useAppSelector(selectNodesById);
   const selectedNodeKey = useAppSelector(selectSelectedNodeKey);
   const pageDefinition = getPageNodeDefinition();
-  const canvasToolbar = (
-    <div className="editor-canvas__toolbar">
-      <Space size={8}>
-        <Button icon={<UndoOutlined />} disabled={undoDisabled} onClick={onUndo}>
-          撤销
-        </Button>
-        <Button icon={<RedoOutlined />} disabled={redoDisabled} onClick={onRedo}>
-          重做
-        </Button>
-      </Space>
-    </div>
+  const canvasHeader = (
+    <Space size={8} align="center">
+      <span>表单画布</span>
+      <Tooltip title="撤销">
+        <Button
+          aria-label="撤销"
+          size="small"
+          icon={<UndoOutlined />}
+          disabled={undoDisabled}
+          onClick={onUndo}
+        />
+      </Tooltip>
+      <Tooltip title="重做">
+        <Button
+          aria-label="重做"
+          size="small"
+          icon={<RedoOutlined />}
+          disabled={redoDisabled}
+          onClick={onRedo}
+        />
+      </Tooltip>
+    </Space>
   );
 
   useEffect(() => {
@@ -61,7 +72,7 @@ export function FormEditorWrapper({ undoDisabled, redoDisabled, onUndo, onRedo }
   if (!pageRoot) {
     return (
       <Card
-        title={canvasToolbar}
+        title={canvasHeader}
         size="small"
         className="editor-canvas"
         classNames={{ body: "editor-canvas__body" }}
@@ -75,7 +86,7 @@ export function FormEditorWrapper({ undoDisabled, redoDisabled, onUndo, onRedo }
 
   return (
     <Card
-      title={canvasToolbar}
+      title={canvasHeader}
       size="small"
       className="editor-canvas"
       classNames={{ body: "editor-canvas__body" }}

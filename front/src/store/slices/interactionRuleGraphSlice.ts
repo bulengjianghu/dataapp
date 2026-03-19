@@ -6,8 +6,8 @@ export type RuleNodeType =
   | "query"
   | "transform"
   | "command"
-  | "context"
-  | "notice";
+  | "notice"
+  | "end";
 
 export type RuleGraphNode = {
   id: string;
@@ -49,6 +49,7 @@ export type InteractionRuleGraphState = {
     viewport: { x: number; y: number; zoom: number };
   };
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
   diagnostics: RuleGraphDiagnostic[];
   references: RuleReferenceSummary;
   dirty: boolean;
@@ -71,6 +72,7 @@ const initialState: InteractionRuleGraphState = {
     viewport: { x: 0, y: 0, zoom: 1 },
   },
   selectedNodeId: null,
+  selectedEdgeId: null,
   diagnostics: [],
   references: emptyReferences,
   dirty: false,
@@ -97,6 +99,7 @@ const interactionRuleGraphSlice = createSlice({
         viewport: action.payload.graph?.viewport ?? { x: 0, y: 0, zoom: 1 },
       };
       state.selectedNodeId = action.payload.graph?.nodes?.[0]?.id ?? null;
+      state.selectedEdgeId = null;
       state.diagnostics = [];
       state.references = emptyReferences;
       state.dirty = false;
@@ -104,6 +107,7 @@ const interactionRuleGraphSlice = createSlice({
     addRuleNode: (state, action: PayloadAction<RuleGraphNode>) => {
       state.graph.nodes.push(action.payload);
       state.selectedNodeId = action.payload.id;
+      state.selectedEdgeId = null;
       state.dirty = true;
     },
     updateRuleNodeData: (
@@ -139,18 +143,43 @@ const interactionRuleGraphSlice = createSlice({
       if (state.selectedNodeId === action.payload) {
         state.selectedNodeId = state.graph.nodes[0]?.id ?? null;
       }
+      state.selectedEdgeId = null;
       state.dirty = true;
     },
     connectRuleNodes: (state, action: PayloadAction<RuleGraphEdge>) => {
       state.graph.edges.push(action.payload);
+      state.selectedEdgeId = action.payload.id;
       state.dirty = true;
     },
     removeRuleEdge: (state, action: PayloadAction<string>) => {
       state.graph.edges = state.graph.edges.filter((item) => item.id !== action.payload);
+      if (state.selectedEdgeId === action.payload) {
+        state.selectedEdgeId = null;
+      }
       state.dirty = true;
     },
     selectRuleNode: (state, action: PayloadAction<string | null>) => {
       state.selectedNodeId = action.payload;
+      if (action.payload) {
+        state.selectedEdgeId = null;
+      }
+    },
+    selectRuleEdge: (state, action: PayloadAction<string | null>) => {
+      state.selectedEdgeId = action.payload;
+      if (action.payload) {
+        state.selectedNodeId = null;
+      }
+    },
+    updateRuleEdge: (
+      state,
+      action: PayloadAction<{ edgeId: string; patch: Partial<RuleGraphEdge> }>
+    ) => {
+      const target = state.graph.edges.find((item) => item.id === action.payload.edgeId);
+      if (!target) {
+        return;
+      }
+      Object.assign(target, action.payload.patch);
+      state.dirty = true;
     },
     setRuleDiagnostics: (state, action: PayloadAction<RuleGraphDiagnostic[]>) => {
       state.diagnostics = action.payload;
@@ -174,6 +203,8 @@ export const {
   connectRuleNodes,
   removeRuleEdge,
   selectRuleNode,
+  selectRuleEdge,
+  updateRuleEdge,
   setRuleDiagnostics,
   setRuleReferences,
   markRuleGraphDirty,

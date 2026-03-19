@@ -106,6 +106,18 @@ class InteractionRuleDefinitionTest {
     }
 
     @Test
+    void shouldMarkDefinitionDeleted() {
+        InteractionRuleMeta meta = InteractionRuleMeta.initialize("金额联动", "FIELD_CHANGE_MAIN", 100);
+        InteractionRuleDefinition definition = InteractionRuleDefinition.create(2001L, 1001L, meta);
+
+        InteractionRuleDefinition deleted = definition.delete();
+
+        assertThat(deleted.getId()).isEqualTo(2001L);
+        assertThat(deleted.getStatus()).isEqualTo("DELETED");
+        assertThat(deleted.getRuleCode()).isEqualTo(definition.getRuleCode());
+    }
+
+    @Test
     void shouldBuildValidationAndPublishArtifactsFromDraft() {
         InteractionRuleMeta meta = InteractionRuleMeta.reconstruct(
             "金额联动",

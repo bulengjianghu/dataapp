@@ -124,7 +124,193 @@ class FormSchemaTest {
 
         assertThatThrownBy(() -> FormSchema.forPublish(Map.of("field_2", relationField)))
             .isInstanceOf(BizException.class)
-            .hasMessageContaining("关联选择");
+            .hasMessageContaining("currentFieldKey");
+    }
+
+    @Test
+    void shouldResolveCurrentFieldKeyFromCurrentNodeIdWhenSavingDraft() {
+        LinkedHashMap<String, Object> inputField = new LinkedHashMap<>();
+        inputField.put("id", "field_1");
+        inputField.put("type", "field");
+        inputField.put("parentId", null);
+        inputField.put("childrenIds", List.of());
+        inputField.put("props", Map.of(
+            "component", "input",
+            "label", "客户名称"
+        ));
+        inputField.put("layout", Map.of("span", 12));
+
+        LinkedHashMap<String, Object> relationField = new LinkedHashMap<>();
+        relationField.put("id", "field_2");
+        relationField.put("type", "field");
+        relationField.put("serverId", "fld_relation_customer");
+        relationField.put("parentId", null);
+        relationField.put("childrenIds", List.of());
+        relationField.put("props", Map.of(
+            "component", "relation-select",
+            "label", "关联客户",
+            "sourceFormId", "900",
+            "mappings", List.of(Map.of(
+                "targetFieldKey", "fld_customer_name",
+                "currentNodeId", "field_1"
+            ))
+        ));
+        relationField.put("layout", Map.of("span", 12));
+
+        FormSchema schema = FormSchema.forDraft(Map.of(
+            "field_1", inputField,
+            "field_2", relationField
+        ));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> normalizedRelationField = (Map<String, Object>) schema.fields().get("field_2");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) normalizedRelationField.get("props");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> mappings = (List<Map<String, Object>>) props.get("mappings");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> normalizedInputField = (Map<String, Object>) schema.fields().get("field_1");
+
+        assertThat(mappings).hasSize(1);
+        assertThat(mappings.getFirst())
+            .containsEntry("currentNodeId", "field_1")
+            .containsEntry("currentFieldKey", normalizedInputField.get("serverId"));
+    }
+
+    @Test
+    void shouldAllowDraftSaveWhenRelationSelectIsOnlyPartiallyConfigured() {
+        LinkedHashMap<String, Object> relationField = new LinkedHashMap<>();
+        relationField.put("id", "field_2");
+        relationField.put("type", "field");
+        relationField.put("parentId", null);
+        relationField.put("childrenIds", List.of());
+        relationField.put("props", Map.of(
+            "component", "relation-select"
+        ));
+        relationField.put("layout", Map.of("span", 12));
+
+        FormSchema schema = FormSchema.forDraft(Map.of("field_2", relationField));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> normalizedRelationField = (Map<String, Object>) schema.fields().get("field_2");
+        assertThat(normalizedRelationField.get("serverId")).asString().startsWith("fld_");
+    }
+
+    @Test
+    void shouldAllowPublishWhenRelationMappingUsesCurrentNodeIdAndCanBeResolved() {
+        LinkedHashMap<String, Object> inputField = new LinkedHashMap<>();
+        inputField.put("id", "field_1");
+        inputField.put("type", "field");
+        inputField.put("serverId", "fld_customer_name");
+        inputField.put("parentId", null);
+        inputField.put("childrenIds", List.of());
+        inputField.put("props", Map.of(
+            "component", "input",
+            "label", "客户名称"
+        ));
+        inputField.put("layout", Map.of("span", 12));
+
+        LinkedHashMap<String, Object> relationField = new LinkedHashMap<>();
+        relationField.put("id", "field_2");
+        relationField.put("type", "field");
+        relationField.put("serverId", "fld_relation_customer");
+        relationField.put("parentId", null);
+        relationField.put("childrenIds", List.of());
+        relationField.put("props", Map.of(
+            "component", "relation-select",
+            "label", "关联客户",
+            "sourceFormId", "900",
+            "mappings", List.of(Map.of(
+                "targetFieldKey", "fld_customer_name_src",
+                "currentNodeId", "field_1"
+            ))
+        ));
+        relationField.put("layout", Map.of("span", 12));
+
+        FormSchema schema = FormSchema.forPublish(Map.of(
+            "field_1", inputField,
+            "field_2", relationField
+        ));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> normalizedRelationField = (Map<String, Object>) schema.fields().get("field_2");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) normalizedRelationField.get("props");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> mappings = (List<Map<String, Object>>) props.get("mappings");
+        assertThat(mappings.getFirst()).containsEntry("currentFieldKey", "fld_customer_name");
+    }
+
+    @Test
+    void shouldAllowDraftWhenRelationMappingPointsToNodeThatIsNotYetPublishable() {
+        LinkedHashMap<String, Object> container = new LinkedHashMap<>();
+        container.put("id", "container_1");
+        container.put("type", "container");
+        container.put("serverId", "grp_customer");
+        container.put("parentId", null);
+        container.put("childrenIds", List.of());
+        container.put("props", Map.of("title", "分组"));
+        container.put("layout", Map.of());
+
+        LinkedHashMap<String, Object> relationField = new LinkedHashMap<>();
+        relationField.put("id", "field_2");
+        relationField.put("type", "field");
+        relationField.put("serverId", "fld_relation_customer");
+        relationField.put("parentId", null);
+        relationField.put("childrenIds", List.of());
+        relationField.put("props", Map.of(
+            "component", "relation-select",
+            "label", "关联客户",
+            "sourceFormId", "900",
+            "mappings", List.of(Map.of(
+                "targetFieldKey", "fld_customer_name_src",
+                "currentNodeId", "container_1"
+            ))
+        ));
+        relationField.put("layout", Map.of("span", 12));
+
+        FormSchema schema = FormSchema.forDraft(Map.of(
+            "container_1", container,
+            "field_2", relationField
+        ));
+
+        assertThat(schema.fields()).containsKeys("container_1", "field_2");
+    }
+
+    @Test
+    void shouldRejectPublishWhenRelationMappingPointsToNonFieldNode() {
+        LinkedHashMap<String, Object> container = new LinkedHashMap<>();
+        container.put("id", "container_1");
+        container.put("type", "container");
+        container.put("serverId", "grp_customer");
+        container.put("parentId", null);
+        container.put("childrenIds", List.of());
+        container.put("props", Map.of("title", "分组"));
+        container.put("layout", Map.of());
+
+        LinkedHashMap<String, Object> relationField = new LinkedHashMap<>();
+        relationField.put("id", "field_2");
+        relationField.put("type", "field");
+        relationField.put("serverId", "fld_relation_customer");
+        relationField.put("parentId", null);
+        relationField.put("childrenIds", List.of());
+        relationField.put("props", Map.of(
+            "component", "relation-select",
+            "label", "关联客户",
+            "sourceFormId", "900",
+            "mappings", List.of(Map.of(
+                "targetFieldKey", "fld_customer_name_src",
+                "currentNodeId", "container_1"
+            ))
+        ));
+        relationField.put("layout", Map.of("span", 12));
+
+        assertThatThrownBy(() -> FormSchema.forPublish(Map.of(
+            "container_1", container,
+            "field_2", relationField
+        )))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("只能回填到字段组件");
     }
 
     private Map<String, Object> fieldNode(String id, String parentId) {

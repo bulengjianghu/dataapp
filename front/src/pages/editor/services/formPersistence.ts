@@ -75,23 +75,82 @@ function getSiblingOrders(nodesById: NodesById) {
   return orders;
 }
 
+function createLocalServerId(node: Node) {
+  if (typeof node.serverId === "string" && node.serverId.trim()) {
+    return node.serverId;
+  }
+  if (node.type === "detail_table") {
+    return `dt_${node.id}`;
+  }
+  if (node.type === "container") {
+    return `ct_${node.id}`;
+  }
+  return `fld_${node.id}`;
+}
+
+function normalizeRelationMappings(node: Node, normalizedNodesById: NodesById) {
+  if (node.type !== "field" || node.props.component !== "relation-select" || !Array.isArray(node.props.mappings)) {
+    return node;
+  }
+
+  const mappings = node.props.mappings.map((item) => {
+    if (typeof item !== "object" || item === null) {
+      return item;
+    }
+
+    const row = item as Record<string, unknown>;
+    const rawCurrentFieldKey = typeof row.currentFieldKey === "string" ? row.currentFieldKey : "";
+    const matchedNode = normalizedNodesById[rawCurrentFieldKey];
+    const currentFieldKey =
+      matchedNode && matchedNode.type === "field"
+        ? createLocalServerId(matchedNode)
+        : rawCurrentFieldKey;
+
+    return {
+      ...row,
+      currentFieldKey,
+    };
+  });
+
+  return {
+    ...node,
+    props: {
+      ...node.props,
+      mappings,
+    },
+  };
+}
+
 function serializeDraft(nodesById: NodesById) {
   const siblingOrders = getSiblingOrders(nodesById);
+  const normalizedNodesById = Object.fromEntries(
+    Object.entries(nodesById).map(([nodeId, node]) => [
+      nodeId,
+      node.id === PAGE_NODE_ID
+        ? node
+        : {
+            ...node,
+            serverId: createLocalServerId(node),
+          },
+    ])
+  ) as NodesById;
   const fields: Record<string, Node> = {};
 
-  buildTraversalOrder(nodesById).forEach((nodeId) => {
-    const node = nodesById[nodeId];
+  buildTraversalOrder(normalizedNodesById).forEach((nodeId) => {
+    const node = normalizedNodesById[nodeId];
     if (!node || node.id === PAGE_NODE_ID) {
       return;
     }
 
+    const normalizedNode = normalizeRelationMappings(node, normalizedNodesById);
+
     fields[node.id] = {
-      ...node,
-      parentId: node.parentId === PAGE_NODE_ID ? null : node.parentId,
-      childrenIds: [...node.childrenIds],
+      ...normalizedNode,
+      parentId: normalizedNode.parentId === PAGE_NODE_ID ? null : normalizedNode.parentId,
+      childrenIds: [...normalizedNode.childrenIds],
       layout: {
-        ...node.layout,
-        order: siblingOrders.get(node.id) ?? node.layout.order,
+        ...normalizedNode.layout,
+        order: siblingOrders.get(node.id) ?? normalizedNode.layout.order,
       },
     };
   });

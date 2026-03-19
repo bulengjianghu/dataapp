@@ -59,7 +59,7 @@ function createRowId() {
 }
 
 function isFieldNode(node: Node) {
-  return node.type === "field" && typeof node.serverId === "string" && node.serverId.trim().length > 0;
+  return node.type === "field";
 }
 
 function isTextCapableFieldNode(node: Node) {
@@ -84,8 +84,8 @@ function buildFieldOptions(nodesById: NodesById, predicate: (node: Node) => bool
   return Object.values(nodesById)
     .filter((node) => isFieldNode(node) && predicate(node))
     .map((node) => ({
-      label: `${getNodeLabel(node)} (${node.serverId})`,
-      value: node.serverId as string,
+      label: `${getNodeLabel(node)} (${typeof node.serverId === "string" && node.serverId.trim() ? node.serverId : node.id})`,
+      value: typeof node.serverId === "string" && node.serverId.trim() ? node.serverId : node.id,
     }));
 }
 

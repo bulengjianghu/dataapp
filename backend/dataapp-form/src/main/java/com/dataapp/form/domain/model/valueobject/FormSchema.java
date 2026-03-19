@@ -93,6 +93,7 @@ public final class FormSchema {
             nodes.put(nodeId, node);
         }
 
+        resolveRelationMappings(nodes, strictPublishValidation);
         validateGraph(nodes);
         validateComponents(nodes, strictPublishValidation);
 
@@ -160,6 +161,10 @@ public final class FormSchema {
                 if ("detail_table".equals(nodeType)) {
                     validateDetailTable(node, nodes, strictPublishValidation);
                 }
+                continue;
+            }
+
+            if (!strictPublishValidation) {
                 continue;
             }
 
@@ -243,9 +248,69 @@ public final class FormSchema {
             }
             String targetFieldKey = asNullableString(mappingMap.get("targetFieldKey"));
             String currentFieldKey = asNullableString(mappingMap.get("currentFieldKey"));
-            if (targetFieldKey == null || currentFieldKey == null) {
+            String currentNodeId = asNullableString(mappingMap.get("currentNodeId"));
+            if (targetFieldKey == null || (currentFieldKey == null && currentNodeId == null)) {
                 throw invalid("关联选择回填映射不完整");
             }
+        }
+    }
+
+    private static void resolveRelationMappings(
+        LinkedHashMap<String, LinkedHashMap<String, Object>> nodes,
+        boolean strictPublishValidation
+    ) {
+        for (LinkedHashMap<String, Object> node : nodes.values()) {
+            if (!"field".equals(asNullableString(node.get("type")))) {
+                continue;
+            }
+            LinkedHashMap<String, Object> props = asObjectMap(node.get("props"));
+            if (!"relation-select".equals(asNullableString(props.get("component")))) {
+                continue;
+            }
+
+            Object mappings = props.get("mappings");
+            if (!(mappings instanceof Collection<?> mappingList) || mappingList.isEmpty()) {
+                continue;
+            }
+
+            List<Map<String, Object>> normalizedMappings = new ArrayList<>();
+            for (Object mapping : mappingList) {
+                if (!(mapping instanceof Map<?, ?> mappingMap)) {
+                    throw invalid("关联选择回填映射非法");
+                }
+                LinkedHashMap<String, Object> normalizedMapping = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> entry : mappingMap.entrySet()) {
+                    normalizedMapping.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+
+                String currentFieldKey = asNullableString(normalizedMapping.get("currentFieldKey"));
+                String currentNodeId = asNullableString(normalizedMapping.get("currentNodeId"));
+                if ((currentFieldKey == null || currentFieldKey.isBlank()) && currentNodeId != null && !currentNodeId.isBlank()) {
+                    LinkedHashMap<String, Object> targetNode = nodes.get(currentNodeId);
+                    if (targetNode == null && strictPublishValidation) {
+                        throw invalid("关联选择回填目标节点不存在: " + currentNodeId);
+                    }
+                    if (targetNode != null && !"field".equals(asNullableString(targetNode.get("type"))) && strictPublishValidation) {
+                        throw invalid("关联选择只能回填到字段组件: " + currentNodeId);
+                    }
+                    String resolvedFieldKey = targetNode == null ? null : asNullableString(targetNode.get("serverId"));
+                    if (resolvedFieldKey == null || resolvedFieldKey.isBlank()) {
+                        if (strictPublishValidation) {
+                            throw invalid("发布前必须将关联回填目标解析为字段 serverId");
+                        }
+                    } else {
+                        normalizedMapping.put("currentFieldKey", resolvedFieldKey);
+                    }
+                }
+
+                if (strictPublishValidation && asNullableString(normalizedMapping.get("currentFieldKey")) == null) {
+                    throw invalid("发布前必须补齐关联回填目标字段 currentFieldKey");
+                }
+
+                normalizedMappings.add(Map.copyOf(normalizedMapping));
+            }
+            props.put("mappings", List.copyOf(normalizedMappings));
+            node.put("props", props);
         }
     }
 

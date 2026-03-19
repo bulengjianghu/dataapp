@@ -30,10 +30,21 @@ type MoveNodePayload = {
   targetIndex?: number;
 };
 
+function createLocalServerId(type: NodeType, nodeId: string) {
+  if (type === "detail_table") {
+    return `dt_${nodeId}`;
+  }
+  if (type === "container") {
+    return `ct_${nodeId}`;
+  }
+  return `fld_${nodeId}`;
+}
+
 function createNode(type: NodeType, props?: Record<string, unknown>, layout?: Node["layout"]): Node {
+  const id = `tmp_${Math.random().toString(36).slice(2, 10)}`;
   return {
-    id: `tmp_${Math.random().toString(36).slice(2, 10)}`,
-    serverId: null,
+    id,
+    serverId: createLocalServerId(type, id),
     type,
     parentId: null,
     childrenIds: [],

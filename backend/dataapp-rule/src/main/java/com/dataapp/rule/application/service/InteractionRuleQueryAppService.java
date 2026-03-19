@@ -2,10 +2,12 @@ package com.dataapp.rule.application.service;
 
 import com.dataapp.rule.domain.model.aggregate.InteractionRuleDefinition;
 import com.dataapp.rule.domain.model.entity.InteractionRuleDraft;
+import com.dataapp.rule.domain.model.entity.InteractionRuleVersion;
 import com.dataapp.rule.domain.model.valueobject.InteractionRuleDraftSummary;
 import com.dataapp.rule.domain.repository.InteractionRuleRepository;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftListItemResponse;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftResponse;
+import com.dataapp.rule.interfaces.dto.InteractionRulePublishedResponse;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -60,6 +62,28 @@ public class InteractionRuleQueryAppService {
             draft.getVersion(),
             readJson(draft.getGraphJson()),
             readJson(draft.getCompiledJson())
+        );
+    }
+
+    public InteractionRulePublishedResponse getPublished(Long formId, Long ruleId) {
+        InteractionRuleVersion version = interactionRuleRepository.findCurrentPublishedVersion(formId, ruleId);
+        if (version == null) {
+            throw new BizException(ErrorCode.RULE_NOT_FOUND, "规则发布版本不存在");
+        }
+        return new InteractionRulePublishedResponse(
+            formId,
+            ruleId,
+            version.getId(),
+            version.getVersionNo(),
+            version.getEventType(),
+            version.getPriority(),
+            version.getCompilerVersion(),
+            version.getStatus(),
+            version.getPublishedAt() == null ? "" : version.getPublishedAt().toString(),
+            version.getPublishedSnapshotJson(),
+            version.getCompiledJson(),
+            version.getNormalizedJson(),
+            version.getDependencyJson()
         );
     }
 

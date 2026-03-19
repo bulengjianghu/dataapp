@@ -1,7 +1,9 @@
 import { request } from "../../../services/api";
 import {
+  type CompiledInteractionRule,
   type InteractionEventType,
   type InteractionRuleMeta,
+  type RuleReferenceSummary,
 } from "../../../store/slices/interactionRuleDraftSlice";
 
 export type InteractionRuleSummary = {
@@ -43,10 +45,72 @@ type InteractionRuleDraftResponse = {
   compiledJson: Record<string, unknown>;
 };
 
+type InteractionRuleValidationResponse = {
+  valid: boolean;
+  diagnostics: Array<{
+    id: string;
+    level: "error" | "warning";
+    nodeId?: string;
+    edgeId?: string;
+    code: string;
+    message: string;
+  }>;
+  references: RuleReferenceSummary;
+  normalizedJson: Record<string, unknown>;
+  dependencyJson: Record<string, unknown>;
+};
+
+type InteractionRulePublishResponse = {
+  versionId: number;
+  versionNo: number;
+  status: string;
+  references: RuleReferenceSummary;
+  normalizedJson: Record<string, unknown>;
+};
+
+type InteractionRulePublishedResponse = {
+  versionId: number;
+  versionNo: number;
+  eventType: InteractionEventType;
+  priority: number;
+  compilerVersion: string;
+  status: string;
+  publishedAt: string;
+  publishedSnapshotJson: Record<string, unknown>;
+  compiledJson: Record<string, unknown>;
+  normalizedJson: Record<string, unknown>;
+  dependencyJson: Record<string, unknown>;
+};
+
 export type InteractionRuleDraft = {
   meta: InteractionRuleMeta;
   graphJson: Record<string, unknown>;
   compiledJson: Record<string, unknown>;
+  compiledRule?: CompiledInteractionRule | null;
+};
+
+export type InteractionRuleValidationResult = InteractionRuleValidationResponse;
+
+export type InteractionRulePublishResult = {
+  versionId: string;
+  versionNo: number;
+  status: string;
+  references: RuleReferenceSummary;
+  normalizedJson: Record<string, unknown>;
+};
+
+export type InteractionRulePublishedVersion = {
+  versionId: string;
+  versionNo: number;
+  eventType: InteractionEventType;
+  priority: number;
+  compilerVersion: string;
+  status: string;
+  publishedAt: string;
+  publishedSnapshotJson: Record<string, unknown>;
+  compiledJson: Record<string, unknown>;
+  normalizedJson: Record<string, unknown>;
+  dependencyJson: Record<string, unknown>;
 };
 
 function deserializeDraft(payload: InteractionRuleDraftResponse): InteractionRuleDraft {
@@ -118,4 +182,56 @@ export async function saveInteractionRuleDraftToServer(draft: InteractionRuleDra
   );
 
   return deserializeDraft(saved);
+}
+
+export async function validateInteractionRuleOnServer(formId: string, ruleId: string) {
+  return request<InteractionRuleValidationResponse>(
+    `/api/admin/forms/${formId}/interaction-rules/${ruleId}/validate`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
+}
+
+export async function publishInteractionRuleOnServer(
+  formId: string,
+  ruleId: string
+): Promise<InteractionRulePublishResult> {
+  const published = await request<InteractionRulePublishResponse>(
+    `/api/admin/forms/${formId}/interaction-rules/${ruleId}/publish`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
+  return {
+    versionId: String(published.versionId),
+    versionNo: published.versionNo,
+    status: published.status,
+    references: published.references,
+    normalizedJson: published.normalizedJson,
+  };
+}
+
+export async function loadPublishedInteractionRuleFromServer(
+  formId: string,
+  ruleId: string
+): Promise<InteractionRulePublishedVersion> {
+  const published = await request<InteractionRulePublishedResponse>(
+    `/api/admin/forms/${formId}/interaction-rules/${ruleId}/published`
+  );
+  return {
+    versionId: String(published.versionId),
+    versionNo: published.versionNo,
+    eventType: published.eventType,
+    priority: published.priority,
+    compilerVersion: published.compilerVersion,
+    status: published.status,
+    publishedAt: published.publishedAt,
+    publishedSnapshotJson: published.publishedSnapshotJson ?? {},
+    compiledJson: published.compiledJson ?? {},
+    normalizedJson: published.normalizedJson ?? {},
+    dependencyJson: published.dependencyJson ?? {},
+  };
 }

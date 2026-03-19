@@ -3,6 +3,10 @@ package com.dataapp.rule.infrastructure.persistence.mapper;
 import com.dataapp.rule.infrastructure.persistence.po.RuleDefinitionPO;
 import com.dataapp.rule.infrastructure.persistence.po.RuleDraftPO;
 import com.dataapp.rule.infrastructure.persistence.po.RuleDraftSummaryPO;
+import com.dataapp.rule.infrastructure.persistence.po.RuleReferenceIndexPO;
+import com.dataapp.rule.infrastructure.persistence.po.RuleTriggerBindingPO;
+import com.dataapp.rule.infrastructure.persistence.po.RuleVersionPO;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -15,7 +19,7 @@ import java.util.List;
 public interface InteractionRuleMapper {
 
     @Select("""
-        select id, form_id, rule_code, rule_name, event_type, scope_type, status, description, updated_at
+        select id, form_id, rule_code, rule_name, event_type, scope_type, status, current_version_id, description, updated_at
         from rule_definition
         where id = #{ruleId}
           and form_id = #{formId}
@@ -40,6 +44,7 @@ public interface InteractionRuleMapper {
             event_type = #{eventType},
             scope_type = #{scopeType},
             description = #{description},
+            status = #{status},
             updated_by = 1,
             updated_at = now()
         where id = #{id}
@@ -97,4 +102,72 @@ public interface InteractionRuleMapper {
             deleted = false
         """)
     int upsertDraft(RuleDraftPO ruleDraftPO);
+
+    @Select("select coalesce(max(version_no), 0) from rule_version where rule_id = #{ruleId}")
+    Integer selectMaxVersionNo(Long ruleId);
+
+    @Update("""
+        update rule_definition
+        set current_version_id = #{versionId},
+            status = #{status},
+            updated_by = 1,
+            updated_at = now()
+        where id = #{ruleId}
+          and form_id = #{formId}
+          and deleted = false
+        """)
+    int updateCurrentVersion(
+        @Param("formId") Long formId,
+        @Param("ruleId") Long ruleId,
+        @Param("versionId") Long versionId,
+        @Param("status") String status
+    );
+
+    @Insert("""
+        insert into rule_version (
+            id, tenant_id, rule_id, version_no, rule_type, form_id, form_version_id, event_type, priority,
+            published_snapshot_json, compiled_json, normalized_json, dependency_json,
+            failure_policy, compiler_version, published_by, status
+        ) values (
+            #{id}, 0, #{ruleId}, #{versionNo}, #{ruleType}, #{formId}, #{formVersionId}, #{eventType}, #{priority},
+            cast(#{publishedSnapshotJson} as jsonb), cast(#{compiledJson} as jsonb),
+            cast(#{normalizedJson} as jsonb), cast(#{dependencyJson} as jsonb),
+            cast(#{failurePolicy} as jsonb), #{compilerVersion}, #{publishedBy}, #{status}
+        )
+        """)
+    int insertVersion(RuleVersionPO ruleVersionPO);
+
+    @Insert("""
+        insert into rule_trigger_binding (
+            id, tenant_id, rule_version_id, trigger_type, trigger_target, trigger_scope, condition_expr, sort_no
+        ) values (
+            #{id}, 0, #{ruleVersionId}, #{triggerType}, #{triggerTarget}, #{triggerScope}, #{conditionExpr}, #{sortNo}
+        )
+        """)
+    int insertTriggerBinding(RuleTriggerBindingPO ruleTriggerBindingPO);
+
+    @Insert("""
+        insert into rule_reference_index (
+            id, tenant_id, rule_version_id, ref_type, ref_key, ref_name, scope_type, required
+        ) values (
+            #{id}, 0, #{ruleVersionId}, #{refType}, #{refKey}, #{refName}, #{scopeType}, #{required}
+        )
+        """)
+    int insertReferenceIndex(RuleReferenceIndexPO ruleReferenceIndexPO);
+
+    @Select("""
+        select rv.id, rv.rule_id, rv.version_no, rv.rule_type, rv.form_id, rv.form_version_id, rv.event_type, rv.priority,
+               rv.published_snapshot_json::text as published_snapshot_json,
+               rv.compiled_json::text as compiled_json,
+               rv.normalized_json::text as normalized_json,
+               rv.dependency_json::text as dependency_json,
+               rv.failure_policy::text as failure_policy,
+               rv.compiler_version, rv.published_by, rv.published_at, rv.status
+        from rule_version rv
+        inner join rule_definition rd on rd.current_version_id = rv.id
+        where rd.form_id = #{formId}
+          and rd.id = #{ruleId}
+          and rd.deleted = false
+        """)
+    RuleVersionPO selectCurrentPublishedVersion(@Param("formId") Long formId, @Param("ruleId") Long ruleId);
 }

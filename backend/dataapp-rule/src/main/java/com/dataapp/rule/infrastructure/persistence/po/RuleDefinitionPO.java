@@ -11,6 +11,7 @@ public class RuleDefinitionPO {
     private String eventType;
     private String scopeType;
     private String status;
+    private Long currentVersionId;
     private String description;
     private OffsetDateTime updatedAt;
 
@@ -68,6 +69,14 @@ public class RuleDefinitionPO {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public Long getCurrentVersionId() {
+        return currentVersionId;
+    }
+
+    public void setCurrentVersionId(Long currentVersionId) {
+        this.currentVersionId = currentVersionId;
     }
 
     public String getDescription() {

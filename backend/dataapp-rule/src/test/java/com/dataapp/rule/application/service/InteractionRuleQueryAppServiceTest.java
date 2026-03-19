@@ -2,10 +2,12 @@ package com.dataapp.rule.application.service;
 
 import com.dataapp.rule.domain.model.aggregate.InteractionRuleDefinition;
 import com.dataapp.rule.domain.model.entity.InteractionRuleDraft;
+import com.dataapp.rule.domain.model.entity.InteractionRuleVersion;
 import com.dataapp.rule.domain.model.valueobject.InteractionRuleDraftSummary;
 import com.dataapp.rule.domain.repository.InteractionRuleRepository;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftListItemResponse;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftResponse;
+import com.dataapp.rule.interfaces.dto.InteractionRulePublishedResponse;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +69,7 @@ class InteractionRuleQueryAppServiceTest {
             "FIELD_CHANGE_MAIN",
             "FORM",
             "DRAFT",
+            null,
             ""
         );
         InteractionRuleDraft draft = new InteractionRuleDraft(
@@ -123,6 +126,7 @@ class InteractionRuleQueryAppServiceTest {
             "FIELD_CHANGE_MAIN",
             "FORM",
             "DRAFT",
+            null,
             "desc"
         );
         InteractionRuleDraft draft = new InteractionRuleDraft(
@@ -149,5 +153,40 @@ class InteractionRuleQueryAppServiceTest {
         assertThat(response.priority()).isEqualTo(100);
         assertThat(response.enabled()).isTrue();
         assertThat(response.description()).isEqualTo("desc");
+    }
+
+    @Test
+    void shouldLoadPublishedInteractionRuleVersion() {
+        InteractionRuleQueryAppService service = new InteractionRuleQueryAppService(
+            interactionRuleRepository,
+            new ObjectMapper()
+        );
+        when(interactionRuleRepository.findCurrentPublishedVersion(1001L, 2001L)).thenReturn(
+            new InteractionRuleVersion(
+                4001L,
+                2001L,
+                1,
+                "INTERACTION",
+                1001L,
+                null,
+                "FIELD_CHANGE_MAIN",
+                300,
+                java.util.Map.of("ruleCode", "IR-2001"),
+                java.util.Map.of("steps", java.util.List.of()),
+                java.util.Map.of("triggerScope", "MAIN_FIELD"),
+                java.util.Map.of("fieldRefs", java.util.List.of("main.amount")),
+                "{\"type\":\"continue\"}",
+                "v0.2.0",
+                1L,
+                OffsetDateTime.parse("2026-03-19T15:00:00+08:00"),
+                "ACTIVE"
+            )
+        );
+
+        InteractionRulePublishedResponse response = service.getPublished(1001L, 2001L);
+
+        assertThat(response.versionId()).isEqualTo(4001L);
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(response.publishedSnapshotJson()).containsEntry("ruleCode", "IR-2001");
     }
 }

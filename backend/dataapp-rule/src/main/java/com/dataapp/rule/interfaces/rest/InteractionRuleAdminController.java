@@ -5,6 +5,9 @@ import com.dataapp.rule.application.service.InteractionRuleQueryAppService;
 import com.dataapp.rule.interfaces.dto.CreateInteractionRuleRequest;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftListItemResponse;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftResponse;
+import com.dataapp.rule.interfaces.dto.InteractionRulePublishResponse;
+import com.dataapp.rule.interfaces.dto.InteractionRulePublishedResponse;
+import com.dataapp.rule.interfaces.dto.InteractionRuleValidationResponse;
 import com.dataapp.rule.interfaces.dto.SaveInteractionRuleDraftRequest;
 import com.dataapp.shared.kernel.response.Result;
 import jakarta.validation.Valid;
@@ -66,5 +69,29 @@ public class InteractionRuleAdminController {
         @Valid @RequestBody SaveInteractionRuleDraftRequest request
     ) {
         return Result.success(interactionRuleCommandAppService.saveDraft(formId, ruleId, request));
+    }
+
+    @PostMapping("/{ruleId}/validate")
+    public Result<InteractionRuleValidationResponse> validate(
+        @PathVariable("formId") Long formId,
+        @PathVariable("ruleId") Long ruleId
+    ) {
+        return Result.success(interactionRuleCommandAppService.validate(formId, ruleId));
+    }
+
+    @PostMapping("/{ruleId}/publish")
+    public Result<InteractionRulePublishResponse> publish(
+        @PathVariable("formId") Long formId,
+        @PathVariable("ruleId") Long ruleId
+    ) {
+        return Result.success(interactionRuleCommandAppService.publish(formId, ruleId));
+    }
+
+    @GetMapping("/{ruleId}/published")
+    public Result<InteractionRulePublishedResponse> published(
+        @PathVariable("formId") Long formId,
+        @PathVariable("ruleId") Long ruleId
+    ) {
+        return Result.success(interactionRuleQueryAppService.getPublished(formId, ruleId));
     }
 }

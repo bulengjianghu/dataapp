@@ -25,11 +25,32 @@ export type InteractionRuleMeta = {
   draftVersion: number;
 };
 
+export type RuleReferenceSummary = {
+  fields: string[];
+  detailTables: string[];
+  forms: string[];
+  events: string[];
+};
+
+export type CompiledInteractionRule = {
+  ruleId: string;
+  eventType: InteractionEventType;
+  triggerScope: "MAIN_FIELD" | "DETAIL_ROW" | "RECORD" | "GLOBAL";
+  triggerTarget?: string;
+  priority: number;
+  steps: Array<Record<string, unknown>>;
+  failurePolicy: "interrupt" | "continue" | "fallback";
+  references: RuleReferenceSummary;
+};
+
 export type InteractionRuleDraftState = {
   meta: InteractionRuleMeta;
   graphJson: Record<string, unknown>;
   compiledJson: Record<string, unknown>;
+  compiledRule: CompiledInteractionRule | null;
   saveStatus: "idle" | "saving" | "success" | "error";
+  publishStatus: "idle" | "publishing" | "success" | "error";
+  lastSavedAt: string | null;
   errorMessage: string | null;
   initialized: boolean;
 };
@@ -53,7 +74,10 @@ const initialState: InteractionRuleDraftState = {
   meta: DEFAULT_INTERACTION_RULE_META,
   graphJson: {},
   compiledJson: {},
+  compiledRule: null,
   saveStatus: "idle",
+  publishStatus: "idle",
+  lastSavedAt: null,
   errorMessage: null,
   initialized: false,
 };
@@ -69,12 +93,16 @@ const interactionRuleDraftSlice = createSlice({
         meta: InteractionRuleMeta;
         graphJson?: Record<string, unknown>;
         compiledJson?: Record<string, unknown>;
+        compiledRule?: CompiledInteractionRule | null;
       }>
     ) => {
       state.meta = action.payload.meta;
       state.graphJson = action.payload.graphJson ?? {};
       state.compiledJson = action.payload.compiledJson ?? {};
+      state.compiledRule = action.payload.compiledRule ?? null;
       state.saveStatus = "idle";
+      state.publishStatus = "idle";
+      state.lastSavedAt = null;
       state.errorMessage = null;
       state.initialized = true;
     },
@@ -96,14 +124,29 @@ const interactionRuleDraftSlice = createSlice({
     updateInteractionRuleCompiledJson: (state, action: PayloadAction<Record<string, unknown>>) => {
       state.compiledJson = action.payload;
     },
+    setInteractionRuleCompiledRule: (state, action: PayloadAction<CompiledInteractionRule | null>) => {
+      state.compiledRule = action.payload;
+    },
     setInteractionRuleSaveStatus: (
       state,
       action: PayloadAction<{
         status: InteractionRuleDraftState["saveStatus"];
         errorMessage?: string | null;
+        lastSavedAt?: string | null;
       }>
     ) => {
       state.saveStatus = action.payload.status;
+      state.lastSavedAt = action.payload.lastSavedAt ?? state.lastSavedAt;
+      state.errorMessage = action.payload.errorMessage ?? null;
+    },
+    setInteractionRulePublishStatus: (
+      state,
+      action: PayloadAction<{
+        status: InteractionRuleDraftState["publishStatus"];
+        errorMessage?: string | null;
+      }>
+    ) => {
+      state.publishStatus = action.payload.status;
       state.errorMessage = action.payload.errorMessage ?? null;
     },
   },
@@ -115,7 +158,9 @@ export const {
   updateInteractionRuleMeta,
   updateInteractionRuleGraphJson,
   updateInteractionRuleCompiledJson,
+  setInteractionRuleCompiledRule,
   setInteractionRuleSaveStatus,
+  setInteractionRulePublishStatus,
 } = interactionRuleDraftSlice.actions;
 
 export const interactionRuleDraftReducer = interactionRuleDraftSlice.reducer;

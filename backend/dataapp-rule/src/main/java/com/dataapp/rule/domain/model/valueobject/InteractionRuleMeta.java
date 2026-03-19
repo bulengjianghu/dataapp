@@ -108,6 +108,15 @@ public final class InteractionRuleMeta {
         return compilerVersion;
     }
 
+    public String resolveTriggerScope() {
+        return switch (eventType) {
+            case "FIELD_CHANGE_MAIN" -> "MAIN_FIELD";
+            case "FIELD_CHANGE_DETAIL" -> "DETAIL_ROW";
+            case "FORM_INIT", "DETAIL_ROW_ADDED", "DETAIL_ROW_REMOVED", "FORM_SUBMIT_BEFORE", "RECORD_SUBMIT" -> "RECORD";
+            default -> "GLOBAL";
+        };
+    }
+
     private static String normalizeRuleName(String ruleName) {
         if (ruleName == null || ruleName.trim().isEmpty()) {
             return "未命名规则";

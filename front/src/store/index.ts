@@ -1,6 +1,7 @@
 import { configureStore, type Middleware } from "@reduxjs/toolkit";
 import { createHistorySnapshot, parseHistorySnapshot } from "./history";
 import { interactionRuleDraftReducer } from "./slices/interactionRuleDraftSlice";
+import { interactionRuleGraphReducer } from "./slices/interactionRuleGraphSlice";
 import {
   clearHistory,
   editorHistoryReducer,
@@ -28,6 +29,7 @@ type StoreState = {
   formSchema: ReturnType<typeof formSchemaReducer>;
   editorHistory: ReturnType<typeof editorHistoryReducer>;
   interactionRuleDraft: ReturnType<typeof interactionRuleDraftReducer>;
+  interactionRuleGraph: ReturnType<typeof interactionRuleGraphReducer>;
 };
 
 const historyTrackedActionTypes = new Set<string>([
@@ -86,6 +88,7 @@ export const store = configureStore({
     formSchema: formSchemaReducer,
     editorHistory: editorHistoryReducer,
     interactionRuleDraft: interactionRuleDraftReducer,
+    interactionRuleGraph: interactionRuleGraphReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(historyMiddleware),
 });

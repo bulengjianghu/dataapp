@@ -163,7 +163,10 @@ export async function loadInteractionRuleDraftFromServer(formId: string, ruleId:
   return deserializeDraft(draft);
 }
 
-export async function saveInteractionRuleDraftToServer(draft: InteractionRuleDraft) {
+export async function saveInteractionRuleDraftToServer(
+  draft: InteractionRuleDraft,
+  options?: { keepalive?: boolean }
+) {
   if (!draft.meta.formId || !draft.meta.ruleId) {
     throw new Error("规则草稿尚未初始化");
   }
@@ -172,6 +175,7 @@ export async function saveInteractionRuleDraftToServer(draft: InteractionRuleDra
     `/api/admin/forms/${draft.meta.formId}/interaction-rules/${draft.meta.ruleId}/draft`,
     {
       method: "PUT",
+      keepalive: options?.keepalive,
       body: JSON.stringify({
         ruleCode: draft.meta.ruleCode,
         ruleName: draft.meta.ruleName,

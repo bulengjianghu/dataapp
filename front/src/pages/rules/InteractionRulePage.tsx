@@ -3,10 +3,26 @@ import {
   ArrowLeftOutlined,
   CheckCircleOutlined,
   RocketOutlined,
-  SaveOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Empty, Input, InputNumber, Select, Space, Spin, Switch, Tabs, Tag, Tooltip, Typography, message } from "antd";
-import { useEffect, useState } from "react";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Input,
+  InputNumber,
+  Select,
+  Space,
+  Spin,
+  Switch,
+  Tabs,
+  Tag,
+  Tooltip,
+  Typography,
+  message,
+} from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
@@ -19,6 +35,7 @@ import {
   updateInteractionRuleGraphJson,
   updateInteractionRuleMeta,
   type InteractionEventType,
+  type InteractionRuleMeta,
 } from "../../store/slices/interactionRuleDraftSlice";
 import {
   addRuleNode,
@@ -76,6 +93,53 @@ const NODE_PALETTE_ITEMS: Array<{
   { type: "notice", label: "通知", description: "给用户提示或写入调试日志。", accent: "#eb2f96" },
   { type: "end", label: "结束", description: "显式收束流程，便于表达闭环。", accent: "#2f54eb" },
 ];
+
+const AUTO_SAVE_DELAY = 1500;
+
+function getSaveTag(dirty: boolean, hasSavedDraft: boolean) {
+  if (dirty || !hasSavedDraft) {
+    return {
+      color: "orange",
+      label: "未保存",
+    };
+  }
+  return {
+    color: "green",
+    label: "已保存",
+  };
+}
+
+function formatSavedTime(timestamp: string | null) {
+  if (!timestamp) {
+    return "已保存";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function createRuleDraftFingerprint(
+  meta: InteractionRuleMeta,
+  graphJson: Record<string, unknown>,
+  compiledJson: Record<string, unknown>
+) {
+  return JSON.stringify({
+    meta: {
+      ruleName: meta.ruleName,
+      eventType: meta.eventType,
+      scopeType: meta.scopeType,
+      priority: meta.priority,
+      description: meta.description,
+      enabled: meta.enabled,
+      compilerVersion: meta.compilerVersion,
+    },
+    graphJson,
+    compiledJson,
+  });
+}
 
 function createNodeId() {
   return `node_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
@@ -302,12 +366,55 @@ export function InteractionRulePage() {
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [validationResult, setValidationResult] = useState<InteractionRuleValidationResult | null>(null);
   const [publishedVersion, setPublishedVersion] = useState<InteractionRulePublishedVersion | null>(null);
+  const [persistedFingerprint, setPersistedFingerprint] = useState<string | null>(null);
+  const [autoSavePending, setAutoSavePending] = useState(false);
   const hasCanvasErrors = graphState.diagnostics.some((item) => item.level === "error");
   const ruleDisplayName = ruleDraft.meta.ruleName || "未命名规则";
+  const currentFingerprint = useMemo(
+    () => createRuleDraftFingerprint(ruleDraft.meta, graphModel, ruleDraft.compiledJson),
+    [graphModel, ruleDraft.compiledJson, ruleDraft.meta]
+  );
+  const dirty = Boolean(ruleDraft.initialized && persistedFingerprint && currentFingerprint !== persistedFingerprint);
+  const hasSavedDraft = Boolean(ruleDraft.meta.ruleId);
+  const saveSummary = useMemo(() => {
+    if (ruleDraft.publishStatus === "publishing") {
+      return "发布中";
+    }
+    if (ruleDraft.saveStatus === "saving") {
+      return autoSavePending ? "自动保存中" : "保存中";
+    }
+    if (dirty) {
+      return autoSavePending ? "等待自动保存" : "未保存";
+    }
+    if (!hasSavedDraft) {
+      return "尚未保存草稿";
+    }
+    return `已保存 ${formatSavedTime(ruleDraft.lastSavedAt)}`;
+  }, [autoSavePending, dirty, hasSavedDraft, ruleDraft.lastSavedAt, ruleDraft.publishStatus, ruleDraft.saveStatus]);
+  const saveTag = useMemo(() => getSaveTag(dirty, hasSavedDraft), [dirty, hasSavedDraft]);
+  const latestDraftRef = useRef({
+    initialized: ruleDraft.initialized,
+    meta: ruleDraft.meta,
+    graphModel,
+    compiledJson: ruleDraft.compiledJson,
+    compiledRule: ruleDraft.compiledRule,
+  });
+
+  useEffect(() => {
+    latestDraftRef.current = {
+      initialized: ruleDraft.initialized,
+      meta: ruleDraft.meta,
+      graphModel,
+      compiledJson: ruleDraft.compiledJson,
+      compiledRule: ruleDraft.compiledRule,
+    };
+  }, [graphModel, ruleDraft.compiledJson, ruleDraft.compiledRule, ruleDraft.initialized, ruleDraft.meta]);
 
   useEffect(() => {
     dispatch(resetInteractionRuleDraftState());
     dispatch(resetInteractionRuleGraphState());
+    setPersistedFingerprint(null);
+    setAutoSavePending(false);
     return () => {
       dispatch(resetInteractionRuleDraftState());
       dispatch(resetInteractionRuleGraphState());
@@ -335,6 +442,8 @@ export function InteractionRulePage() {
         }
         dispatch(initializeInteractionRuleDraftState(draft));
         dispatch(initializeRuleGraph({ formId, ruleId, graph: normalizeGraphPayload(draft.graphJson) }));
+        setPersistedFingerprint(createRuleDraftFingerprint(draft.meta, draft.graphJson, draft.compiledJson));
+        dispatch(setInteractionRuleSaveStatus({ status: "success", lastSavedAt: new Date().toISOString() }));
         setPublishedVersion(published);
       })
       .catch((error) => {
@@ -381,40 +490,92 @@ export function InteractionRulePage() {
   ]);
 
   const persistDraft = async () => {
-    if (!ruleDraft.initialized || !ruleDraft.meta.ruleId) {
+    const latestDraft = latestDraftRef.current;
+    if (!latestDraft.initialized || !latestDraft.meta.ruleId) {
       throw new Error("规则尚未初始化");
     }
-    if (!ruleDraft.meta.ruleName.trim()) {
+    if (!latestDraft.meta.ruleName.trim()) {
       throw new Error("规则名称不能为空");
     }
 
     dispatch(setInteractionRuleSaveStatus({ status: "saving" }));
     const saved = await saveInteractionRuleDraftToServer({
-      meta: ruleDraft.meta,
-      graphJson: graphModel,
-      compiledJson: ruleDraft.compiledJson,
-      compiledRule: ruleDraft.compiledRule,
+      meta: latestDraft.meta,
+      graphJson: latestDraft.graphModel,
+      compiledJson: latestDraft.compiledJson,
+      compiledRule: latestDraft.compiledRule,
     });
     dispatch(initializeInteractionRuleDraftState(saved));
     dispatch(initializeRuleGraph({ formId: saved.meta.formId, ruleId: saved.meta.ruleId, graph: normalizeGraphPayload(saved.graphJson) }));
-    dispatch(setInteractionRuleSaveStatus({ status: "success", lastSavedAt: new Date().toISOString() }));
+    const savedAt = new Date().toISOString();
+    setPersistedFingerprint(createRuleDraftFingerprint(saved.meta, saved.graphJson, saved.compiledJson));
+    dispatch(setInteractionRuleSaveStatus({ status: "success", lastSavedAt: savedAt }));
+    setAutoSavePending(false);
     return saved;
   };
 
-  const handleSaveDraft = async () => {
-    try {
-      await persistDraft();
-      messageApi.success("规则草稿已保存");
-    } catch (error) {
-      dispatch(
-        setInteractionRuleSaveStatus({
-          status: "error",
-          errorMessage: error instanceof Error ? error.message : "规则草稿保存失败",
-        })
-      );
-      messageApi.error(error instanceof Error ? error.message : "规则草稿保存失败");
+  useEffect(() => {
+    if (loadingDraft || !dirty || ruleDraft.saveStatus === "saving" || ruleDraft.publishStatus === "publishing") {
+      setAutoSavePending(false);
+      return;
     }
-  };
+
+    setAutoSavePending(true);
+    const timer = window.setTimeout(() => {
+      void persistDraft().catch((error) => {
+        dispatch(
+          setInteractionRuleSaveStatus({
+            status: "error",
+            errorMessage: error instanceof Error ? error.message : "规则草稿保存失败",
+          })
+        );
+        messageApi.error(error instanceof Error ? error.message : "规则草稿保存失败");
+      });
+    }, AUTO_SAVE_DELAY);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [dirty, dispatch, loadingDraft, messageApi, ruleDraft.publishStatus, ruleDraft.saveStatus]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "hidden" || !dirty || !latestDraftRef.current.meta.ruleId) {
+        return;
+      }
+      void saveInteractionRuleDraftToServer(
+        {
+          meta: latestDraftRef.current.meta,
+          graphJson: latestDraftRef.current.graphModel,
+          compiledJson: latestDraftRef.current.compiledJson,
+          compiledRule: latestDraftRef.current.compiledRule,
+        },
+        { keepalive: true }
+      )
+        .then((saved) => {
+          const savedAt = new Date().toISOString();
+          setPersistedFingerprint(createRuleDraftFingerprint(saved.meta, saved.graphJson, saved.compiledJson));
+          dispatch(initializeInteractionRuleDraftState(saved));
+          dispatch(
+            initializeRuleGraph({
+              formId: saved.meta.formId,
+              ruleId: saved.meta.ruleId,
+              graph: normalizeGraphPayload(saved.graphJson),
+            })
+          );
+          dispatch(setInteractionRuleSaveStatus({ status: "success", lastSavedAt: savedAt }));
+          setAutoSavePending(false);
+        })
+        .catch(() => {
+          // 页面隐藏时静默失败，避免打断用户离开流程
+        });
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [dirty, dispatch]);
 
   const handleValidate = async () => {
     if (!formId || !ruleDraft.meta.ruleId) {
@@ -511,14 +672,14 @@ export function InteractionRulePage() {
               </Typography.Title>
             </Space>
             <Space className="interaction-rule-page__header-actions">
+              <Badge status={dirty ? "processing" : "success"} />
+              <Typography.Text type="secondary">{saveSummary}</Typography.Text>
+              <Tag color={saveTag.color}>{saveTag.label}</Tag>
               {hasCanvasErrors ? (
                 <Alert type="warning" showIcon message="当前画布存在未完成配置，发布前请先修复。" />
               ) : null}
               <Button icon={<CheckCircleOutlined />} onClick={() => void handleValidate()}>
                 校验
-              </Button>
-              <Button icon={<SaveOutlined />} loading={ruleDraft.saveStatus === "saving"} onClick={() => void handleSaveDraft()}>
-                保存
               </Button>
               <Button
                 type="primary"

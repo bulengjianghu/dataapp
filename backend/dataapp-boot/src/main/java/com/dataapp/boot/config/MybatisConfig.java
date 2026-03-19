@@ -7,7 +7,8 @@ import org.springframework.context.annotation.Configuration;
 @MapperScan({
     "com.dataapp.identity.infrastructure.persistence.mapper",
     "com.dataapp.form.infrastructure.persistence.mapper",
-    "com.dataapp.record.infrastructure.persistence.mapper"
+    "com.dataapp.record.infrastructure.persistence.mapper",
+    "com.dataapp.rule.infrastructure.persistence.mapper"
 })
 public class MybatisConfig {
 }

@@ -4,6 +4,7 @@ import { LoginPage } from "../pages/auth/LoginPage";
 import { FormEditorPage } from "../pages/editor/FormEditorPage";
 import { FormListPage } from "../pages/forms/FormListPage";
 import { RecordListPage } from "../pages/records/RecordListPage";
+import { InteractionRulePage } from "../pages/rules/InteractionRulePage";
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +22,10 @@ export const router = createBrowserRouter([
       {
         path: "editor",
         element: <FormEditorPage />,
+      },
+      {
+        path: "editor/rules",
+        element: <InteractionRulePage />,
       },
       {
         path: "login",

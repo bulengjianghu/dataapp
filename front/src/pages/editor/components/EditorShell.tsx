@@ -313,6 +313,9 @@ function EditorShellContent() {
           <Badge status={dirty ? "processing" : "success"} />
           <Typography.Text type="secondary">{saveSummary}</Typography.Text>
           <Tag color={saveTag.color}>{saveTag.label}</Tag>
+          <Button disabled={initializing || !formId} onClick={() => navigate(`/editor/rules?formId=${formId}`)}>
+            交互规则
+          </Button>
           <Button disabled={initializing} onClick={() => setPreviewOpen(true)}>
             预览
           </Button>

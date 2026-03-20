@@ -1,13 +1,21 @@
 import { Card, Empty, Input, Select, Space, Typography } from "antd";
+import { useEffect, useMemo, useState } from "react";
 import { useAppDispatch } from "../../../store/hooks";
 import {
   updateRuleNodeData,
   type InteractionRuleGraphState,
 } from "../../../store/slices/interactionRuleGraphSlice";
+import type { Node, NodesById } from "../../../types/schema/node";
+import { loadDraftFromServer } from "../../editor/services/formPersistence";
 
 type RuleNodePropertyPanelProps = {
   graphState: InteractionRuleGraphState;
   embedded?: boolean;
+};
+
+type FieldOption = {
+  label: string;
+  value: string;
 };
 
 const BRANCH_OPTIONS = [
@@ -38,9 +46,89 @@ const COMMAND_OPTIONS = [
   { label: "设置必填", value: "setRequired" },
 ];
 
+function isFieldNode(node: Node) {
+  return node.type === "field";
+}
+
+function getNodeLabel(node: Node) {
+  if (typeof node.props.label === "string" && node.props.label.trim()) {
+    return node.props.label.trim();
+  }
+  if (typeof node.props.title === "string" && node.props.title.trim()) {
+    return node.props.title.trim();
+  }
+  return node.id;
+}
+
+function findDetailTableAncestor(node: Node, nodesById: NodesById): Node | null {
+  let currentParentId = node.parentId;
+  while (currentParentId) {
+    const parent = nodesById[currentParentId];
+    if (!parent) {
+      return null;
+    }
+    if (parent.type === "detail_table") {
+      return parent;
+    }
+    currentParentId = parent.parentId;
+  }
+  return null;
+}
+
+function buildFieldOptions(nodesById: NodesById) {
+  return Object.values(nodesById)
+    .filter((node) => isFieldNode(node))
+    .map((node) => {
+      const serverId = typeof node.serverId === "string" && node.serverId.trim() ? node.serverId.trim() : node.id;
+      const detailTable = findDetailTableAncestor(node, nodesById);
+      const path = detailTable
+        ? `detail.${typeof detailTable.serverId === "string" && detailTable.serverId.trim() ? detailTable.serverId.trim() : detailTable.id}.${serverId}`
+        : `main.${serverId}`;
+      const scopeLabel = detailTable ? `明细表 / ${getNodeLabel(detailTable)}` : "主表";
+      return {
+        label: `${getNodeLabel(node)} (${path})`,
+        value: path,
+        scopeLabel,
+      };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+}
+
+function useCurrentFormFieldOptions(formId: string | null) {
+  const [fieldOptions, setFieldOptions] = useState<FieldOption[]>([]);
+
+  useEffect(() => {
+    if (!formId) {
+      setFieldOptions([]);
+      return;
+    }
+
+    void loadDraftFromServer(formId)
+      .then((draft) => {
+        setFieldOptions(
+          buildFieldOptions(draft.nodesById).map((item) => ({
+            label: `${item.scopeLabel} · ${item.label}`,
+            value: item.value,
+          }))
+        );
+      })
+      .catch(() => {
+        setFieldOptions([]);
+      });
+  }, [formId]);
+
+  return fieldOptions;
+}
+
 export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNodePropertyPanelProps) {
   const dispatch = useAppDispatch();
   const selectedNode = graphState.graph.nodes.find((item) => item.id === graphState.selectedNodeId) ?? null;
+  const fieldOptions = useCurrentFormFieldOptions(graphState.formId);
+  const fieldOptionMap = useMemo(() => new Map(fieldOptions.map((item) => [item.value, item.label])), [fieldOptions]);
+  const showFieldReference = selectedNode?.type === "condition" || selectedNode?.type === "query" || selectedNode?.type === "transform";
+  const showTriggerTarget = selectedNode?.type === "trigger";
+  const showCommandConfig = selectedNode?.type === "command";
+  const showBranchSelector = selectedNode?.type === "condition" || selectedNode?.type === "query" || selectedNode?.type === "transform" || selectedNode?.type === "notice";
 
   if (!selectedNode) {
     const empty = <Empty description="请选择一个节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
@@ -71,16 +159,31 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
           }
         />
       </div>
-      <div>
-        <Typography.Text type="secondary">字段引用</Typography.Text>
-        <Input
-          value={String(selectedNode.data.fieldKey ?? "")}
-          onChange={(event) =>
-            dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { fieldKey: event.target.value } }))
-          }
-          placeholder="例如 main.amount"
-        />
-      </div>
+      {showFieldReference ? (
+        <div>
+          <Typography.Text type="secondary">字段引用</Typography.Text>
+          <Select
+            showSearch
+            allowClear
+            value={typeof selectedNode.data.fieldKey === "string" && selectedNode.data.fieldKey ? selectedNode.data.fieldKey : undefined}
+            options={fieldOptions}
+            onChange={(value) =>
+              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { fieldKey: String(value ?? "") } }))
+            }
+            placeholder={fieldOptions.length > 0 ? "选择字段" : "当前表单暂无可选字段"}
+            optionFilterProp="label"
+            style={{ width: "100%" }}
+            notFoundContent="当前表单暂无可选字段"
+          />
+          {typeof selectedNode.data.fieldKey === "string" && selectedNode.data.fieldKey && fieldOptionMap.has(selectedNode.data.fieldKey) ? null : (
+            typeof selectedNode.data.fieldKey === "string" && selectedNode.data.fieldKey ? (
+              <Typography.Text type="secondary">
+                当前值未匹配到字段，保留原配置：{selectedNode.data.fieldKey}
+              </Typography.Text>
+            ) : null
+          )}
+        </div>
+      ) : null}
       {selectedNode.type === "condition" ? (
         <>
           <div>
@@ -106,19 +209,27 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
           </div>
         </>
       ) : null}
-      <div>
-        <Typography.Text type="secondary">触发目标</Typography.Text>
-        <Input
-          value={String(selectedNode.data.targetField ?? "")}
-          onChange={(event) =>
-            dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { targetField: event.target.value } }))
-          }
-          placeholder="字段触发节点推荐填写"
-        />
-      </div>
-      <div>
-        <Typography.Text type="secondary">命令/动作</Typography.Text>
-        {selectedNode.type === "command" ? (
+      {showTriggerTarget ? (
+        <div>
+          <Typography.Text type="secondary">触发目标</Typography.Text>
+          <Select
+            showSearch
+            allowClear
+            value={typeof selectedNode.data.targetField === "string" && selectedNode.data.targetField ? selectedNode.data.targetField : undefined}
+            options={fieldOptions}
+            onChange={(value) =>
+              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { targetField: String(value ?? "") } }))
+            }
+            placeholder={fieldOptions.length > 0 ? "选择触发字段" : "当前表单暂无可选字段"}
+            optionFilterProp="label"
+            style={{ width: "100%" }}
+            notFoundContent="当前表单暂无可选字段"
+          />
+        </div>
+      ) : null}
+      {showCommandConfig ? (
+        <div>
+          <Typography.Text type="secondary">命令/动作</Typography.Text>
           <Select
             value={typeof selectedNode.data.command === "string" ? selectedNode.data.command : "setValue"}
             options={COMMAND_OPTIONS}
@@ -127,17 +238,9 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
             }
             style={{ width: "100%" }}
           />
-        ) : (
-          <Input
-            value={String(selectedNode.data.command ?? "")}
-            onChange={(event) =>
-              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { command: event.target.value } }))
-            }
-            placeholder="例如 setValue / setReadonly"
-          />
-        )}
-      </div>
-      {selectedNode.type === "command" ? (
+        </div>
+      ) : null}
+      {showCommandConfig ? (
         <>
           <div>
             <Typography.Text type="secondary">字面量值</Typography.Text>
@@ -159,19 +262,24 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
               placeholder="例如 temp.totalAmount / event.value"
             />
           </div>
+          <Typography.Text type="secondary">
+            操作字段已改为从当前表单字段中选择，运行时会按所选字段路径执行命令。
+          </Typography.Text>
         </>
       ) : null}
-      <div>
-        <Typography.Text type="secondary">默认分支标签</Typography.Text>
-        <Select
-          value={typeof selectedNode.data.branch === "string" ? selectedNode.data.branch : "success"}
-          options={BRANCH_OPTIONS}
-          onChange={(value) =>
-            dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { branch: value } }))
-          }
-          style={{ width: "100%" }}
-        />
-      </div>
+      {showBranchSelector ? (
+        <div>
+          <Typography.Text type="secondary">默认分支标签</Typography.Text>
+          <Select
+            value={typeof selectedNode.data.branch === "string" ? selectedNode.data.branch : "success"}
+            options={BRANCH_OPTIONS}
+            onChange={(value) =>
+              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { branch: value } }))
+            }
+            style={{ width: "100%" }}
+          />
+        </div>
+      ) : null}
     </Space>
   );
 

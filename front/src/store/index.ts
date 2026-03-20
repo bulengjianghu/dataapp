@@ -103,3 +103,7 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 store.dispatch(initializeHistory(createHistorySnapshot(store.getState().formSchema)));
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as Window & { __DATAAPP_STORE__?: typeof store }).__DATAAPP_STORE__ = store;
+}

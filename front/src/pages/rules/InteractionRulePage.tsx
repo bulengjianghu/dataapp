@@ -58,6 +58,7 @@ import { RuleGraphCanvas } from "./components/RuleGraphCanvas";
 import { RuleNodePropertyPanel } from "./components/RuleNodePropertyPanel";
 import { RulePalette } from "./components/RulePalette";
 import { precompileInteractionRule } from "./services/interactionRuleCompiler";
+import { loadInteractionRuleFieldOptions } from "./services/interactionRuleFormFields";
 import { layoutInteractionRuleGraph } from "./services/interactionRuleLayout";
 import {
   loadInteractionRuleDraftFromServer,
@@ -193,8 +194,8 @@ function createDefaultNode(type: RuleNodeType, position: { x: number; y: number 
     data: {
       label: labels[type],
       description: "",
-      targetField: type === "trigger" ? "main.amount" : "",
-      fieldKey: type === "command" ? "main.amount" : "",
+      targetField: "",
+      fieldKey: "",
       command: type === "command" ? "setValue" : "",
       branch: "success",
     },
@@ -369,6 +370,7 @@ export function InteractionRulePage() {
   const [publishedVersion, setPublishedVersion] = useState<InteractionRulePublishedVersion | null>(null);
   const [persistedFingerprint, setPersistedFingerprint] = useState<string | null>(null);
   const [autoSavePending, setAutoSavePending] = useState(false);
+  const [availableFieldKeys, setAvailableFieldKeys] = useState<string[]>([]);
   const hasCanvasErrors = graphState.diagnostics.some((item) => item.level === "error");
   const ruleDisplayName = ruleDraft.meta.ruleName || "未命名规则";
   const currentFingerprint = useMemo(
@@ -479,6 +481,30 @@ export function InteractionRulePage() {
   }, [dispatch, formId, messageApi, ruleId]);
 
   useEffect(() => {
+    if (!formId) {
+      setAvailableFieldKeys([]);
+      return;
+    }
+
+    let cancelled = false;
+    void loadInteractionRuleFieldOptions(formId)
+      .then((options) => {
+        if (!cancelled) {
+          setAvailableFieldKeys(options.map((item) => item.value));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvailableFieldKeys([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formId]);
+
+  useEffect(() => {
     if (!ruleDraft.meta.ruleId || !graphState.ruleId) {
       return;
     }
@@ -490,6 +516,7 @@ export function InteractionRulePage() {
         ...graphState,
         graph: graphModel,
       },
+      availableFieldKeys,
     });
     dispatch(setRuleDiagnostics(compiled.diagnostics));
     dispatch(setRuleReferences(compiled.references));
@@ -502,6 +529,7 @@ export function InteractionRulePage() {
     ruleDraft.meta.eventType,
     ruleDraft.meta.priority,
     ruleDraft.meta.ruleId,
+    availableFieldKeys,
   ]);
 
   const persistDraft = async () => {

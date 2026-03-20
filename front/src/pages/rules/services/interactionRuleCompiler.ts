@@ -35,6 +35,10 @@ function collectReferenceValues(nodes: RuleGraphNode[], key: string) {
   );
 }
 
+function isKnownFieldPath(value: unknown, availableFieldKeys: Set<string>) {
+  return typeof value === "string" && value.trim().length > 0 && availableFieldKeys.has(value.trim());
+}
+
 function findReachableNodeIds(graphState: InteractionRuleGraphState, startNodeId: string) {
   const visited = new Set<string>();
   const queue = [startNodeId];
@@ -103,6 +107,7 @@ export function precompileInteractionRule(params: {
   eventType: InteractionEventType;
   priority: number;
   graphState: InteractionRuleGraphState;
+  availableFieldKeys?: string[];
 }): {
   diagnostics: RuleGraphDiagnostic[];
   references: RuleReferenceSummary;
@@ -110,6 +115,7 @@ export function precompileInteractionRule(params: {
 } {
   const triggerNodes = params.graphState.graph.nodes.filter((node) => node.type === "trigger");
   const diagnostics: RuleGraphDiagnostic[] = [];
+  const availableFieldKeys = new Set(params.availableFieldKeys ?? []);
 
   if (triggerNodes.length === 0) {
     diagnostics.push({
@@ -166,6 +172,81 @@ export function precompileInteractionRule(params: {
     }
   });
 
+  params.graphState.graph.nodes.forEach((node) => {
+    if (node.type === "trigger" && !(typeof node.data.targetField === "string" && node.data.targetField.trim())) {
+      diagnostics.push({
+        id: `trigger_target_invalid_${node.id}`,
+        level: "error",
+        nodeId: node.id,
+        code: "trigger_target_invalid",
+        message: "触发器节点必须选择触发目标字段。",
+      });
+    }
+    if (
+      node.type === "trigger" &&
+      typeof node.data.targetField === "string" &&
+      node.data.targetField.trim() &&
+      availableFieldKeys.size > 0 &&
+      !isKnownFieldPath(node.data.targetField, availableFieldKeys)
+    ) {
+      diagnostics.push({
+        id: `trigger_target_unknown_${node.id}`,
+        level: "error",
+        nodeId: node.id,
+        code: "trigger_target_unknown",
+        message: `触发器节点引用的字段已不存在：${node.data.targetField}`,
+      });
+    }
+
+    if (node.type === "command") {
+      const fieldKey = typeof node.data.fieldKey === "string" ? node.data.fieldKey.trim() : "";
+      const command = typeof node.data.command === "string" ? node.data.command.trim() : "";
+      if (!fieldKey) {
+        diagnostics.push({
+          id: `command_target_missing_${node.id}`,
+          level: "error",
+          nodeId: node.id,
+          code: "command_target_missing",
+          message: "命令节点必须选择操作字段。",
+        });
+      }
+      if (!command) {
+        diagnostics.push({
+          id: `command_type_missing_${node.id}`,
+          level: "error",
+          nodeId: node.id,
+          code: "command_type_missing",
+          message: "命令节点必须选择命令动作。",
+        });
+      }
+      if (fieldKey && availableFieldKeys.size > 0 && !isKnownFieldPath(fieldKey, availableFieldKeys)) {
+        diagnostics.push({
+          id: `command_target_unknown_${node.id}`,
+          level: "error",
+          nodeId: node.id,
+          code: "command_target_unknown",
+          message: `命令节点引用的字段已不存在：${fieldKey}`,
+        });
+      }
+    }
+
+    if (
+      (node.type === "condition" || node.type === "query" || node.type === "transform") &&
+      typeof node.data.fieldKey === "string" &&
+      node.data.fieldKey.trim() &&
+      availableFieldKeys.size > 0 &&
+      !isKnownFieldPath(node.data.fieldKey, availableFieldKeys)
+    ) {
+      diagnostics.push({
+        id: `node_field_unknown_${node.id}`,
+        level: "error",
+        nodeId: node.id,
+        code: "node_field_unknown",
+        message: `节点引用的字段已不存在：${node.data.fieldKey}`,
+      });
+    }
+  });
+
   const references: RuleReferenceSummary = {
     fields: collectReferenceValues(params.graphState.graph.nodes, "fieldKey"),
     detailTables: collectReferenceValues(params.graphState.graph.nodes, "detailTableKey"),
@@ -174,7 +255,9 @@ export function precompileInteractionRule(params: {
   };
 
   const triggerTarget =
-    typeof triggerNode?.data.targetField === "string" ? triggerNode.data.targetField : undefined;
+    typeof triggerNode?.data.targetField === "string" && triggerNode.data.targetField.trim()
+      ? triggerNode.data.targetField
+      : undefined;
   const compiledRule: CompiledInteractionRule | null =
     diagnostics.some((item) => item.level === "error") || !params.ruleId
       ? null

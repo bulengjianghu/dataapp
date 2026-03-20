@@ -8,6 +8,8 @@ import com.dataapp.record.interfaces.dto.RecordDraftSaveRequest;
 import com.dataapp.record.interfaces.dto.RecordListItemResponse;
 import com.dataapp.record.interfaces.dto.RecordSubmitRequest;
 import com.dataapp.record.interfaces.dto.RelationRecordOptionResponse;
+import com.dataapp.record.interfaces.dto.RelationRecordQueryRequest;
+import com.dataapp.record.interfaces.dto.RelationRecordQueryResponse;
 import com.dataapp.shared.kernel.response.Result;
 import com.dataapp.shared.security.CurrentUser;
 import jakarta.validation.Valid;
@@ -94,6 +96,18 @@ public class RecordController {
         @PathVariable("formId") Long formId
     ) {
         return Result.success(recordQueryAppService.listRelationOptionsByFormId(currentUser, formId));
+    }
+
+    @PostMapping("/relation/query/by-form/{formId}")
+    public Result<RelationRecordQueryResponse> queryRelationOptionsByForm(
+        @AuthenticationPrincipal CurrentUser currentUser,
+        @PathVariable("formId") Long formId,
+        @RequestBody(required = false) RelationRecordQueryRequest request
+    ) {
+        RelationRecordQueryRequest safeRequest = request == null
+            ? new RelationRecordQueryRequest(null, List.of(), List.of(), List.of(), 1, 20)
+            : request;
+        return Result.success(recordQueryAppService.queryRelationOptionsByFormId(currentUser, formId, safeRequest));
     }
 
     private Map<String, Object> payloadOf(

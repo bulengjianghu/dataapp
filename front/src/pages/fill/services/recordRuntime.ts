@@ -260,14 +260,29 @@ export async function searchRelationRecords({
   filters: Array<Record<string, unknown>>;
   sourceNodesById?: NodesById;
 }): Promise<RelationSearchResult> {
-  const records = await listRelationRecordsByForm(sourceFormId);
-  return {
-    totalCount: records.length,
-    records: records.filter((record) => {
-      if (!matchesKeyword(record, keyword, displayFields, sourceNodesById)) {
-        return false;
-      }
-      return filters.every((filter) => matchesFilter(record, filter, sourceNodesById));
-    }),
-  };
+  try {
+    const response = await request<RelationSearchResult>(`/api/records/relation/query/by-form/${sourceFormId}`, {
+      method: "POST",
+      body: JSON.stringify({
+        keyword,
+        displayFields,
+        filters,
+        sorters: [],
+        pageNo: 1,
+        pageSize: 200,
+      }),
+    });
+    return response;
+  } catch {
+    const records = await listRelationRecordsByForm(sourceFormId);
+    return {
+      totalCount: records.length,
+      records: records.filter((record) => {
+        if (!matchesKeyword(record, keyword, displayFields, sourceNodesById)) {
+          return false;
+        }
+        return filters.every((filter) => matchesFilter(record, filter, sourceNodesById));
+      }),
+    };
+  }
 }

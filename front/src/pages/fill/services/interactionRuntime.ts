@@ -1,6 +1,7 @@
 import { request } from "../../../services/api";
 import type { NodesById } from "../../../types/schema/node";
 import type { AppDispatch, RootState } from "../../../store";
+import { searchRelationRecords, type RelationRecord } from "./recordRuntime";
 import {
   appendEngineDiagnostic,
   appendExecutionTrace,
@@ -19,8 +20,11 @@ import {
   type DetailRowRuntime,
   initializeInteractionRuntime,
   normalizeDetailRows,
+  replaceDetailRows,
   setDetailFieldValue,
   setMainFieldValue,
+  setQueryCache,
+  updateDetailRow,
   type RuntimeFieldState,
   type RuntimeOption,
 } from "../../../store/slices/interactionRuntimeSlice";
@@ -41,7 +45,7 @@ export type InteractionRuntimeRule = {
 };
 
 type RuntimeCommandTarget = {
-  targetType: "main_field" | "detail_field" | "detail_column" | "detail_table";
+  targetType: "main_field" | "detail_field" | "detail_row" | "detail_column" | "detail_table";
   fieldKey?: string;
   detailTableKey?: string;
   rowId?: string;
@@ -357,6 +361,229 @@ function resolveRuntimeValue(path: unknown, context: RuleExecutionContext) {
   return context.runtimeState.data.mainData[path] ?? context.temp[path];
 }
 
+function buildQueryCacheKey(data: Record<string, unknown>, context: RuleExecutionContext) {
+  return JSON.stringify({
+    sourceType: data.sourceType,
+    sourceFormId: data.sourceFormId,
+    fieldSelection: data.fieldSelection,
+    filters: data.filters,
+    keyword: data.keyword ?? context.event.payload.keyword,
+    displayFields: data.displayFields,
+  });
+}
+
+function mapRelationRecordToOption(record: RelationRecord, displayFields: string[]): RuntimeOption {
+  const label =
+    displayFields.length > 0
+      ? displayFields
+          .map((fieldKey) => String(record.mainData[fieldKey] ?? ""))
+          .filter(Boolean)
+          .join(" / ")
+      : String(record.id);
+  return {
+    label: label || String(record.id),
+    value: String(record.id),
+    raw: {
+      id: record.id,
+      mainData: record.mainData,
+      detailTables: record.detailTables,
+      status: record.status,
+      formId: record.formId,
+      formVersionId: record.formVersionId,
+    },
+  };
+}
+
+async function executeQueryStep(
+  step: Record<string, unknown>,
+  context: RuleExecutionContext,
+  getState: () => RootState,
+  dispatch: AppDispatch
+) {
+  const data = typeof step.data === "object" && step.data ? (step.data as Record<string, unknown>) : {};
+  const saveAs = typeof data.saveAs === "string" ? data.saveAs : "";
+  if (!saveAs) {
+    return {
+      nextNodeId: resolveNextTarget(step, "success"),
+      outputSummary: "query 未配置 saveAs，已跳过",
+    };
+  }
+
+  if (data.sourceType === "relation_records") {
+    const sourceFormId = Number(resolveRuntimeValue(data.sourceFormId ?? data.formId, context) ?? data.sourceFormId);
+    if (!sourceFormId) {
+      return {
+        nextNodeId: resolveNextTarget(step, "failure"),
+        outputSummary: "query 缺少 sourceFormId",
+      };
+    }
+    const cacheKey = buildQueryCacheKey(data, context);
+    const cached = getState().interactionRuntime.queryCache[cacheKey];
+    if (cached && cached.expiresAt > Date.now()) {
+      writeTempValue(context, saveAs, cached.data);
+      return {
+        nextNodeId: resolveNextTarget(step, "success"),
+        outputSummary: `命中缓存 ${saveAs}`,
+      };
+    }
+
+    const displayFields = Array.isArray(data.displayFields)
+      ? data.displayFields.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    const filters = Array.isArray(data.filters)
+      ? data.filters
+          .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+          .map((item) => ({
+            ...item,
+            value:
+              typeof item.valueFrom === "string"
+                ? resolveRuntimeValue(item.valueFrom, context)
+                : item.value,
+          }))
+      : [];
+    const keyword = String(resolveRuntimeValue(data.keywordFrom, context) ?? data.keyword ?? context.event.payload.keyword ?? "");
+    const result = await searchRelationRecords({
+      sourceFormId,
+      keyword,
+      displayFields,
+      filters,
+    });
+    writeTempValue(context, saveAs, result.records);
+    dispatch(setQueryCache({ key: cacheKey, data: result.records, expiresAt: Date.now() + 60_000 }));
+    return {
+      nextNodeId: resolveNextTarget(step, "success"),
+      outputSummary: `查询返回 ${result.records.length} 条记录`,
+    };
+  }
+
+  if (data.sourceType === "detail_rows") {
+    const detailTableKey =
+      typeof data.detailTableKey === "string"
+        ? data.detailTableKey
+        : typeof context.event.payload.detailTableKey === "string"
+          ? context.event.payload.detailTableKey
+          : "";
+    const rows = detailTableKey ? context.runtimeState.data.detailTables[detailTableKey] ?? [] : [];
+    writeTempValue(context, saveAs, rows);
+    return {
+      nextNodeId: resolveNextTarget(step, "success"),
+      outputSummary: `读取明细 ${detailTableKey || "-"} ${rows.length} 行`,
+    };
+  }
+
+  const fallbackValue = resolveRuntimeValue(data.valueFrom ?? data.fieldKey ?? data.targetField, context) ?? data.literalValue;
+  writeTempValue(context, saveAs, fallbackValue);
+  return {
+    nextNodeId: resolveNextTarget(step, "success"),
+    outputSummary: `写入临时变量 ${saveAs}`,
+  };
+}
+
+function executeTransformStep(step: Record<string, unknown>, context: RuleExecutionContext) {
+  const data = typeof step.data === "object" && step.data ? (step.data as Record<string, unknown>) : {};
+  const saveAs = typeof data.output === "string" && data.output.trim() ? data.output : typeof data.saveAs === "string" ? data.saveAs : "";
+  if (!saveAs) {
+    return {
+      nextNodeId: resolveNextTarget(step, "success"),
+      outputSummary: "transform 未配置 output/saveAs，已跳过",
+    };
+  }
+
+  const transformType = typeof data.transformType === "string" ? data.transformType : "expression";
+  const inputValue = data.input != null ? resolveRuntimeValue(data.input, context) : resolveRuntimeValue(data.valueFrom ?? data.fieldKey, context);
+  let output: unknown = inputValue;
+
+  if (transformType === "option_mapping") {
+    const displayFields = Array.isArray(data.displayFields)
+      ? data.displayFields.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    output = Array.isArray(inputValue)
+      ? inputValue.map((item, index) => {
+          if (typeof item === "object" && item !== null && "mainData" in item) {
+            return mapRelationRecordToOption(item as RelationRecord, displayFields);
+          }
+          if (typeof item === "object" && item !== null) {
+            const raw = item as Record<string, unknown>;
+            return {
+              label: String(raw.label ?? raw.name ?? raw.id ?? `选项${index + 1}`),
+              value: String(raw.value ?? raw.id ?? index),
+              raw,
+            } satisfies RuntimeOption;
+          }
+          return {
+            label: String(item ?? `选项${index + 1}`),
+            value: String(item ?? index),
+          } satisfies RuntimeOption;
+        })
+      : [];
+  } else if (transformType === "aggregate") {
+    const rows = Array.isArray(inputValue) ? inputValue : [];
+    const aggregateField = typeof data.aggregateField === "string" ? data.aggregateField : typeof data.fieldKey === "string" ? data.fieldKey : "";
+    const aggregateFn = typeof data.aggregateFn === "string" ? data.aggregateFn : "sum";
+    const values = rows.map((row) => {
+      if (typeof row === "object" && row !== null && "values" in row) {
+        return (row as DetailRowRuntime).values[aggregateField];
+      }
+      if (typeof row === "object" && row !== null) {
+        return (row as Record<string, unknown>)[aggregateField];
+      }
+      return row;
+    });
+    if (aggregateFn === "count") {
+      output = values.length;
+    } else if (aggregateFn === "max") {
+      output = values.reduce<number>((current, item) => Math.max(current, Number(item ?? 0)), Number.NEGATIVE_INFINITY);
+    } else if (aggregateFn === "min") {
+      output = values.reduce<number>((current, item) => Math.min(current, Number(item ?? 0)), Number.POSITIVE_INFINITY);
+    } else {
+      output = values.reduce<number>((current, item) => current + Number(item ?? 0), 0);
+    }
+  } else if (transformType === "field_mapping") {
+    const mappings = Array.isArray(data.mappings)
+      ? data.mappings.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      : [];
+    const sourceRows = Array.isArray(inputValue) ? inputValue : [];
+    output = sourceRows.map((row) =>
+      mappings.reduce<Record<string, unknown>>((result, mapping) => {
+        const sourceField = typeof mapping.sourceField === "string" ? mapping.sourceField : typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
+        const targetField = typeof mapping.targetField === "string" ? mapping.targetField : typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
+        if (!sourceField || !targetField) {
+          return result;
+        }
+        const rawRow = typeof row === "object" && row !== null && "values" in row ? (row as DetailRowRuntime).values : (row as Record<string, unknown>);
+        result[targetField] = rawRow?.[sourceField];
+        return result;
+      }, {})
+    );
+  } else if (transformType === "filter") {
+    const rows = Array.isArray(inputValue) ? inputValue : [];
+    const fieldKey = typeof data.fieldKey === "string" ? data.fieldKey : "";
+    const expectedValue = data.valueFrom != null ? resolveRuntimeValue(data.valueFrom, context) : data.literalValue;
+    output = rows.filter((row) => {
+      const rawRow = typeof row === "object" && row !== null && "values" in row ? (row as DetailRowRuntime).values : (row as Record<string, unknown>);
+      return rawRow?.[fieldKey] === expectedValue;
+    });
+  } else if (transformType === "sort") {
+    const rows = Array.isArray(inputValue) ? [...inputValue] : [];
+    const fieldKey = typeof data.fieldKey === "string" ? data.fieldKey : "";
+    const direction = data.direction === "desc" ? -1 : 1;
+    rows.sort((left, right) => {
+      const leftRow = typeof left === "object" && left !== null && "values" in left ? (left as DetailRowRuntime).values : (left as Record<string, unknown>);
+      const rightRow = typeof right === "object" && right !== null && "values" in right ? (right as DetailRowRuntime).values : (right as Record<string, unknown>);
+      return String(leftRow?.[fieldKey] ?? "").localeCompare(String(rightRow?.[fieldKey] ?? "")) * direction;
+    });
+    output = rows;
+  } else if (transformType === "expression") {
+    output = inputValue ?? data.literalValue;
+  }
+
+  writeTempValue(context, saveAs, output);
+  return {
+    nextNodeId: resolveNextTarget(step, "success"),
+    outputSummary: `输出变量 ${saveAs}`,
+  };
+}
+
 function matchRule(rule: InteractionRuntimeRule, event: RuntimeEvent) {
   if (rule.eventType !== event.eventType) {
     return false;
@@ -494,6 +721,9 @@ function resolveCommandTarget(
 
   if (targetType === "detail_table" && detailTableKey) {
     return { targetType: "detail_table", detailTableKey };
+  }
+  if (targetType === "detail_row" && detailTableKey && rowId) {
+    return { targetType: "detail_row", detailTableKey, rowId };
   }
   if (targetType === "detail_column" && detailTableKey && fieldKey) {
     return { targetType: "detail_column", detailTableKey, fieldKey };
@@ -653,10 +883,41 @@ function dispatchRuntimeCommand(
       break;
     case "appendRow":
       if (target.detailTableKey && command.value && typeof command.value === "object" && !Array.isArray(command.value)) {
+        const appendedRow = createDetailRowRuntime(command.value as Record<string, unknown>, { __origin: "relation_fill" });
         dispatch(
           appendDetailRows({
             detailTableKey: target.detailTableKey,
-            rows: [createDetailRowRuntime(command.value as Record<string, unknown>, { __origin: "relation_fill" })],
+            rows: [appendedRow],
+          })
+        );
+        if (command.emitEventAfterCommand) {
+          dispatch(enqueueRuntimeEvent(createDetailRowAddedRuntimeEvent(target.detailTableKey, appendedRow.__rowId, "rule")));
+        }
+      }
+      break;
+    case "updateRow":
+      if (
+        target.detailTableKey &&
+        target.rowId &&
+        command.value &&
+        typeof command.value === "object" &&
+        !Array.isArray(command.value)
+      ) {
+        dispatch(
+          updateDetailRow({
+            detailTableKey: target.detailTableKey,
+            rowId: target.rowId,
+            patch: command.value as Record<string, unknown>,
+          })
+        );
+      }
+      break;
+    case "replaceTable":
+      if (target.detailTableKey && Array.isArray(command.value)) {
+        dispatch(
+          replaceDetailRows({
+            detailTableKey: target.detailTableKey,
+            rows: command.value as Array<Record<string, unknown> | DetailRowRuntime>,
           })
         );
       }
@@ -707,7 +968,7 @@ function dispatchRuntimeCommand(
   }
 }
 
-export function processNextRuntimeEvent(params: {
+export async function processNextRuntimeEvent(params: {
   dispatch: AppDispatch;
   getState: () => RootState;
   rules: InteractionRuntimeRule[];
@@ -719,7 +980,7 @@ export function processNextRuntimeEvent(params: {
   }
 
   const matchedRules = rules.filter((rule) => matchRule(rule, event));
-  matchedRules.forEach((rule) => {
+  for (const rule of matchedRules) {
     const executionId = createExecutionId();
     const startedAt = Date.now();
     dispatch(startRuleExecution({ executionId, ruleId: String(rule.ruleId), eventId: event.eventId, startedAt }));
@@ -765,11 +1026,11 @@ export function processNextRuntimeEvent(params: {
           nextNodeId = result.nextNodeId;
           outputSummary = result.outputSummary;
         } else if (stepType === "query") {
-          const result = executeContextLikeStep(currentStep, context, "query");
+          const result = await executeQueryStep(currentStep, context, getState, dispatch);
           nextNodeId = result.nextNodeId;
           outputSummary = result.outputSummary;
         } else if (stepType === "transform") {
-          const result = executeContextLikeStep(currentStep, context, "transform");
+          const result = executeTransformStep(currentStep, context);
           nextNodeId = result.nextNodeId;
           outputSummary = result.outputSummary;
         } else if (stepType === "command") {
@@ -815,7 +1076,7 @@ export function processNextRuntimeEvent(params: {
       );
       dispatch(finishRuleExecution({ executionId, status: "failed" }));
     }
-  });
+  }
 
   dispatch(dequeueRuntimeEvent());
 }

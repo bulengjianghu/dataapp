@@ -87,6 +87,41 @@ function readSelectedDisplayField(node: Node) {
   return typeof node.props.selectedDisplayField === "string" ? node.props.selectedDisplayField.trim() : "";
 }
 
+function readRelationOptionsFromFieldState(fieldState: unknown) {
+  if (!fieldState || typeof fieldState !== "object" || !("componentType" in fieldState)) {
+    return [];
+  }
+  const relationFieldState = fieldState as {
+    componentType?: string;
+    relation?: {
+      options?: Array<{
+        raw?: Record<string, unknown>;
+        value?: string;
+      }>;
+    };
+  };
+  if (relationFieldState.componentType !== "relation-select") {
+    return [];
+  }
+  return Array.isArray(relationFieldState.relation?.options) ? relationFieldState.relation.options : [];
+}
+
+function readRelationFilterFromFieldState(fieldState: unknown) {
+  if (!fieldState || typeof fieldState !== "object" || !("componentType" in fieldState)) {
+    return null;
+  }
+  const relationFieldState = fieldState as {
+    componentType?: string;
+    relation?: {
+      filter?: Record<string, unknown>;
+    };
+  };
+  if (relationFieldState.componentType !== "relation-select") {
+    return null;
+  }
+  return relationFieldState.relation?.filter ?? null;
+}
+
 export function RecordListPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -159,6 +194,48 @@ export function RecordListPage() {
 
   const getRelationDisplayValue = (node: Node, detailTableKey?: string, rowId?: string) =>
     relationDisplayValues[buildRelationDisplayKey(node, detailTableKey, rowId)];
+
+  useEffect(() => {
+    if (!relationDialogContext) {
+      return;
+    }
+    const fieldKey = getFieldKey(relationDialogContext.node);
+    const relationOptions = readRelationOptionsFromFieldState(runtimeFieldStates[fieldKey]);
+    if (relationOptions.length === 0) {
+      return;
+    }
+    const optionRecords = relationOptions
+      .map((option) => option.raw)
+      .filter(
+        (
+          raw
+        ): raw is {
+          id: number;
+          formId: number;
+          formVersionId: number;
+          status: string;
+          mainData: Record<string, unknown>;
+          detailTables: Record<string, Array<Record<string, unknown>>>;
+        } =>
+          typeof raw === "object" &&
+          raw !== null &&
+          typeof raw.id === "number" &&
+          typeof raw.formId === "number" &&
+          typeof raw.formVersionId === "number" &&
+          typeof raw.status === "string" &&
+          typeof raw.mainData === "object" &&
+          raw.mainData !== null &&
+          typeof raw.detailTables === "object" &&
+          raw.detailTables !== null
+      );
+    if (optionRecords.length === 0) {
+      return;
+    }
+    setRelationRecords(optionRecords);
+    setSelectedRelationRecordId(optionRecords[0]?.id ?? null);
+    setRelationEmptyHint("暂无可选关联记录");
+    setRelationLoading(false);
+  }, [relationDialogContext, runtimeFieldStates]);
 
   const loadPage = async () => {
     if (!formId || !formCode) {
@@ -345,9 +422,12 @@ export function RecordListPage() {
     try {
       const sourceForm = await ensureRelationSourceForm(sourceFormId);
       const displayFields = readRelationDisplayFields(context.node);
-      const filters = Array.isArray(context.node.props.filters)
+      const configuredFilters = Array.isArray(context.node.props.filters)
         ? context.node.props.filters.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
         : [];
+      const runtimeFilter = readRelationFilterFromFieldState(runtimeFieldStates[getFieldKey(context.node)]);
+      const runtimeFilters = runtimeFilter ? [runtimeFilter] : [];
+      const filters = [...configuredFilters, ...runtimeFilters];
       const result = await searchRelationRecords({
         sourceFormId,
         keyword,

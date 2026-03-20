@@ -219,6 +219,37 @@ const interactionRuntimeSlice = createSlice({
         ...normalizeDetailRows(action.payload.rows),
       ];
     },
+    updateDetailRow: (
+      state,
+      action: PayloadAction<{
+        detailTableKey: string;
+        rowId: string;
+        patch: Record<string, unknown>;
+      }>
+    ) => {
+      const rows = state.data.detailTables[action.payload.detailTableKey] ?? [];
+      state.data.detailTables[action.payload.detailTableKey] = rows.map((row) => {
+        if (row.__rowId !== action.payload.rowId) {
+          return row;
+        }
+        const nextValues = {
+          ...row.values,
+          ...action.payload.patch,
+        };
+        Object.keys(nextValues).forEach((fieldKey) => {
+          const value = nextValues[fieldKey];
+          if (value === undefined || value === null || value === "") {
+            delete nextValues[fieldKey];
+          }
+        });
+        return {
+          ...row,
+          __version: row.__version + 1,
+          __status: row.__origin === "server" ? "updated" : row.__status,
+          values: nextValues,
+        };
+      });
+    },
     removeDetailRow: (
       state,
       action: PayloadAction<{ detailTableKey: string; rowId: string }>
@@ -314,6 +345,7 @@ export const {
   setMainFieldValue,
   setDetailFieldValue,
   appendDetailRows,
+  updateDetailRow,
   removeDetailRow,
   replaceDetailRows,
   applyFieldDerivedState,

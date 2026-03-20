@@ -3,7 +3,11 @@ import { Alert, Button, Card, Checkbox, Empty, Flex, Input, InputNumber, Select,
 import type { CheckboxGroupProps } from "antd/es/checkbox";
 import type { ColumnsType } from "antd/es/table";
 import type { Node, NodesById } from "../../../types/schema/node";
-import type { BaseFieldState } from "../../../store/slices/interactionRuntimeSlice";
+import type {
+  DetailRowRuntime,
+  DetailTableRuntimeState,
+  RuntimeFieldState,
+} from "../../../store/slices/interactionRuntimeSlice";
 import { ContainerLayout } from "../../editor/components/formDesign/shared/ContainerLayout";
 import type { RecordRuntimeData } from "../services/recordRuntime";
 
@@ -39,9 +43,26 @@ function getFieldKey(node: Node) {
   return typeof node.serverId === "string" ? node.serverId : "";
 }
 
+function isSelectFieldState(
+  fieldState: RuntimeFieldState | undefined
+): fieldState is Extract<RuntimeFieldState, { componentType: "select" | "radio" | "checkbox" }> {
+  return (
+    fieldState?.componentType === "select" ||
+    fieldState?.componentType === "radio" ||
+    fieldState?.componentType === "checkbox"
+  );
+}
+
+function readSelectOptions(fieldState: RuntimeFieldState | undefined, node: Node) {
+  if (!isSelectFieldState(fieldState)) {
+    return toSelectOptions(node.props.options);
+  }
+  return fieldState.select.options.length > 0 ? fieldState.select.options : toSelectOptions(node.props.options);
+}
+
 function renderFieldInput(
   node: Node,
-  fieldState: BaseFieldState | undefined,
+  fieldState: RuntimeFieldState | undefined,
   value: unknown,
   displayValue: string | undefined,
   disabled: boolean,
@@ -97,7 +118,7 @@ function renderFieldInput(
           value={typeof value === "string" ? value : undefined}
           placeholder={placeholder || "请选择"}
           disabled={disabled}
-          options={fieldState?.select?.options?.length ? fieldState.select.options : toSelectOptions(node.props.options)}
+          options={readSelectOptions(fieldState, node)}
           onChange={(nextValue) => onChange(nextValue)}
         />
       );
@@ -106,7 +127,9 @@ function renderFieldInput(
         <Checkbox.Group
           value={Array.isArray(value) ? (value as string[]) : []}
           disabled={disabled}
-          options={fieldState?.select?.options?.length ? fieldState.select.options : toCheckboxOptions(node.props.options)}
+          options={isSelectFieldState(fieldState) && fieldState.select.options.length > 0
+            ? fieldState.select.options
+            : toCheckboxOptions(node.props.options)}
           onChange={(nextValue) => onChange(nextValue)}
         />
       );
@@ -143,7 +166,7 @@ function MainFieldRenderer({
 }: {
   node: Node;
   data: Record<string, unknown>;
-  fieldState?: BaseFieldState;
+  fieldState?: RuntimeFieldState;
   validationErrors?: string[];
   readonly: boolean;
   onMainValueChange: (fieldKey: string, value: unknown) => void;
@@ -197,6 +220,7 @@ function DetailTableRuntimeBlock({
   onOpenRelationSelect,
   getRelationDisplayValue,
   fieldStates,
+  detailTableStates,
   validationErrors,
 }: {
   node: Node;
@@ -204,63 +228,78 @@ function DetailTableRuntimeBlock({
   data: RecordRuntimeData;
   readonly: boolean;
   onAddDetailRow: (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => void;
-  onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
-  onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
-  onOpenRelationSelect: (node: Node, detailTableKey: string, rowIndex: number) => void;
-  getRelationDisplayValue: (node: Node, detailTableKey: string, rowIndex: number) => string | undefined;
-  fieldStates: Record<string, BaseFieldState>;
+  onRemoveDetailRow: (detailTableKey: string, rowId: string) => void;
+  onDetailValueChange: (detailTableKey: string, rowId: string, fieldKey: string, value: unknown) => void;
+  onOpenRelationSelect: (node: Node, detailTableKey: string, rowId: string) => void;
+  getRelationDisplayValue: (node: Node, detailTableKey: string, rowId: string) => string | undefined;
+  fieldStates: Record<string, RuntimeFieldState>;
+  detailTableStates: Record<string, DetailTableRuntimeState>;
   validationErrors: Record<string, string[]>;
 }) {
   const detailTableKey = getFieldKey(node);
+  const tableState = detailTableStates[detailTableKey];
   const title = (node.props.title as string | undefined) ?? "明细表";
   const allowAddRow = node.props.allowAddRow !== false;
   const allowDeleteRow = node.props.allowDeleteRow !== false;
   const defaultRowCount = typeof node.props.defaultRowCount === "number" ? node.props.defaultRowCount : 1;
   const columnNodes = node.childrenIds.map((childId) => nodesById[childId]).filter((child): child is Node => Boolean(child));
   const rows = data.detailTables[detailTableKey] ?? [];
+  const tableVisible = tableState?.visible ?? true;
+  const tableReadonly = readonly || tableState?.readonly === true;
 
-  const columns: ColumnsType<Record<string, unknown>> = [
-    ...columnNodes.map((columnNode): ColumnsType<Record<string, unknown>>[number] => {
-      const fieldKey = getFieldKey(columnNode);
-      const rawWidth = typeof columnNode.props.columnWidth === "number" ? columnNode.props.columnWidth : undefined;
-      return {
-        title: getFieldLabel(columnNode),
-        dataIndex: fieldKey,
-        key: fieldKey,
-        width: rawWidth,
-        render: (_, __, rowIndex) =>
-          renderFieldInput(
-            columnNode,
-            fieldStates[fieldKey],
-            rows[rowIndex]?.[fieldKey],
-            getRelationDisplayValue(columnNode, detailTableKey, rowIndex),
-            readonly,
-            (nextValue: unknown) => onDetailValueChange(detailTableKey, rowIndex, fieldKey, nextValue),
-            () => onOpenRelationSelect(columnNode, detailTableKey, rowIndex)
-          ),
-      };
-    }),
+  if (!tableVisible) {
+    return null;
+  }
+
+  const columns: ColumnsType<DetailRowRuntime> = [
+    ...columnNodes
+      .filter((columnNode) => {
+        const fieldKey = getFieldKey(columnNode);
+        const columnState = tableState?.columns[fieldKey] ?? fieldStates[fieldKey];
+        return (columnState?.visible ?? true) !== false;
+      })
+      .map((columnNode): ColumnsType<DetailRowRuntime>[number] => {
+        const fieldKey = getFieldKey(columnNode);
+        const columnState = tableState?.columns[fieldKey] ?? fieldStates[fieldKey];
+        const rawWidth = typeof columnNode.props.columnWidth === "number" ? columnNode.props.columnWidth : undefined;
+        return {
+          title: getFieldLabel(columnNode),
+          dataIndex: fieldKey,
+          key: fieldKey,
+          width: rawWidth,
+          render: (_, row) =>
+            renderFieldInput(
+              columnNode,
+              columnState,
+              row.values[fieldKey],
+              getRelationDisplayValue(columnNode, detailTableKey, row.__rowId),
+              tableReadonly || columnState?.readonly === true || columnState?.disabled === true,
+              (nextValue: unknown) => onDetailValueChange(detailTableKey, row.__rowId, fieldKey, nextValue),
+              () => onOpenRelationSelect(columnNode, detailTableKey, row.__rowId)
+            ),
+        };
+      }),
   ];
 
-  if (!readonly && allowDeleteRow) {
+  if (!tableReadonly && allowDeleteRow) {
     columns.push({
       title: "操作",
       key: "actions",
       width: 88,
-      render: (_, __, rowIndex) => (
+      render: (_, row) => (
         <Button
           type="text"
           danger
           icon={<DeleteOutlined />}
-          onClick={() => onRemoveDetailRow(detailTableKey, rowIndex)}
+          onClick={() => onRemoveDetailRow(detailTableKey, row.__rowId)}
         />
       ),
     });
   }
 
-  const dataSource = rows.map((row, index) => ({
-    key: `${detailTableKey}-${index}`,
+  const dataSource = rows.map((row) => ({
     ...row,
+    key: row.__rowId,
   }));
 
   return (
@@ -273,7 +312,7 @@ function DetailTableRuntimeBlock({
         </Space>
       }
       extra={
-        !readonly && allowAddRow ? (
+        !tableReadonly && allowAddRow ? (
           <Button icon={<PlusOutlined />} size="small" onClick={() => onAddDetailRow(detailTableKey, columnNodes, defaultRowCount)}>
             新增行
           </Button>
@@ -307,6 +346,7 @@ function RuntimeFillNode({
   onOpenRelationSelect,
   getRelationDisplayValue,
   fieldStates,
+  detailTableStates,
   validationErrors,
 }: {
   node: Node;
@@ -315,11 +355,12 @@ function RuntimeFillNode({
   readonly: boolean;
   onMainValueChange: (fieldKey: string, value: unknown) => void;
   onAddDetailRow: (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => void;
-  onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
-  onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
-  onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
-  getRelationDisplayValue: (node: Node, detailTableKey?: string, rowIndex?: number) => string | undefined;
-  fieldStates: Record<string, BaseFieldState>;
+  onRemoveDetailRow: (detailTableKey: string, rowId: string) => void;
+  onDetailValueChange: (detailTableKey: string, rowId: string, fieldKey: string, value: unknown) => void;
+  onOpenRelationSelect: (node: Node, detailTableKey?: string, rowId?: string) => void;
+  getRelationDisplayValue: (node: Node, detailTableKey?: string, rowId?: string) => string | undefined;
+  fieldStates: Record<string, RuntimeFieldState>;
+  detailTableStates: Record<string, DetailTableRuntimeState>;
   validationErrors: Record<string, string[]>;
 }) {
   if (node.type === "container") {
@@ -345,6 +386,7 @@ function RuntimeFillNode({
                 onOpenRelationSelect={onOpenRelationSelect}
                 getRelationDisplayValue={getRelationDisplayValue}
                 fieldStates={fieldStates}
+                detailTableStates={detailTableStates}
                 validationErrors={validationErrors}
               />
             </div>
@@ -364,9 +406,10 @@ function RuntimeFillNode({
         onAddDetailRow={onAddDetailRow}
         onRemoveDetailRow={onRemoveDetailRow}
         onDetailValueChange={onDetailValueChange}
-        onOpenRelationSelect={(relationNode, detailTableKey, rowIndex) => onOpenRelationSelect(relationNode, detailTableKey, rowIndex)}
-        getRelationDisplayValue={(relationNode, detailTableKey, rowIndex) => getRelationDisplayValue(relationNode, detailTableKey, rowIndex)}
+        onOpenRelationSelect={(relationNode, detailTableKey, rowId) => onOpenRelationSelect(relationNode, detailTableKey, rowId)}
+        getRelationDisplayValue={(relationNode, detailTableKey, rowId) => getRelationDisplayValue(relationNode, detailTableKey, rowId)}
         fieldStates={fieldStates}
+        detailTableStates={detailTableStates}
         validationErrors={validationErrors}
       />
     );
@@ -402,6 +445,7 @@ export function RecordFormCanvas({
   onOpenRelationSelect,
   getRelationDisplayValue,
   fieldStates = {},
+  detailTableStates = {},
   validationErrors = {},
 }: {
   nodesById: NodesById;
@@ -410,11 +454,12 @@ export function RecordFormCanvas({
   readonly: boolean;
   onMainValueChange: (fieldKey: string, value: unknown) => void;
   onAddDetailRow: (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => void;
-  onRemoveDetailRow: (detailTableKey: string, rowIndex: number) => void;
-  onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
-  onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
-  getRelationDisplayValue: (node: Node, detailTableKey?: string, rowIndex?: number) => string | undefined;
-  fieldStates?: Record<string, BaseFieldState>;
+  onRemoveDetailRow: (detailTableKey: string, rowId: string) => void;
+  onDetailValueChange: (detailTableKey: string, rowId: string, fieldKey: string, value: unknown) => void;
+  onOpenRelationSelect: (node: Node, detailTableKey?: string, rowId?: string) => void;
+  getRelationDisplayValue: (node: Node, detailTableKey?: string, rowId?: string) => string | undefined;
+  fieldStates?: Record<string, RuntimeFieldState>;
+  detailTableStates?: Record<string, DetailTableRuntimeState>;
   validationErrors?: Record<string, string[]>;
 }) {
   return (
@@ -439,6 +484,7 @@ export function RecordFormCanvas({
               onOpenRelationSelect={onOpenRelationSelect}
               getRelationDisplayValue={getRelationDisplayValue}
               fieldStates={fieldStates}
+              detailTableStates={detailTableStates}
               validationErrors={validationErrors}
             />
           </div>

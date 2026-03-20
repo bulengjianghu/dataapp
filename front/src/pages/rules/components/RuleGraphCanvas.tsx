@@ -49,8 +49,8 @@ const nodeTypes: NodeTypes = {
   query: RuleNodeCard,
   transform: RuleNodeCard,
   command: RuleNodeCard,
+  context: RuleNodeCard,
   notice: RuleNodeCard,
-  end: RuleNodeCard,
 };
 
 function RuleEdgeCard({
@@ -173,9 +173,6 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
     if (!sourceNode || !targetNode) {
       return false;
     }
-    if (sourceNode.type === "end") {
-      return false;
-    }
     if (targetNode.type === "trigger") {
       return false;
     }
@@ -233,8 +230,8 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
         value === "query" ||
         value === "transform" ||
         value === "command" ||
-        value === "notice" ||
-        value === "end"
+        value === "context" ||
+        value === "notice"
       ) {
         return value;
       }
@@ -262,7 +259,7 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
       {graphState.graph.nodes.length === 0 ? (
         <div className="rule-graph-canvas__empty">
           <Empty
-            description="从左侧拖入触发器、命令或结束节点开始编排"
+            description="从左侧拖入触发器、条件或命令节点开始编排"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </div>

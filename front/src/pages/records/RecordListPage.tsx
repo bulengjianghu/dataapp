@@ -6,7 +6,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { clearRuntimeTraces, enqueueRuntimeEvent, resetInteractionEngineState } from "../../store/slices/interactionEngineSlice";
 import {
-  appendDetailRow,
+  appendDetailRows,
+  createDetailRowRuntime,
   removeDetailRow,
   resetInteractionRuntimeState,
   setDetailFieldValue,
@@ -32,8 +33,13 @@ import {
   type RuntimeForm,
 } from "../fill/services/recordRuntime";
 import {
+  createDetailFieldChangeRuntimeEvent,
+  createDetailRowAddedRuntimeEvent,
+  createDetailRowRemovedRuntimeEvent,
   createFormInitRuntimeEvent,
   createMainFieldChangeRuntimeEvent,
+  createRelationOpenRuntimeEvent,
+  createRelationSelectedRuntimeEvent,
   initializeInteractionRuntimeFromRecord,
   loadPublishedInteractionRuntimeRules,
   type InteractionRuntimeRule,
@@ -43,7 +49,7 @@ type DrawerMode = "create" | "edit" | "view";
 type RelationDialogContext = {
   node: Node;
   detailTableKey?: string;
-  rowIndex?: number;
+  rowId?: string;
 };
 
 function createEmptyRuntimeData(): RecordRuntimeData {
@@ -67,8 +73,8 @@ function buildDefaultDetailRow(columnNodes: Node[]) {
   }, {});
 }
 
-function buildRelationDisplayKey(node: Node, detailTableKey?: string, rowIndex?: number) {
-  return [node.id, detailTableKey ?? "MAIN", typeof rowIndex === "number" ? String(rowIndex) : "ROOT"].join(":");
+function buildRelationDisplayKey(node: Node, detailTableKey?: string, rowId?: string) {
+  return [node.id, detailTableKey ?? "MAIN", rowId ?? "ROOT"].join(":");
 }
 
 function readRelationDisplayFields(node: Node) {
@@ -110,6 +116,7 @@ export function RecordListPage() {
   const formCode = searchParams.get("formCode");
   const runtimeData = useAppSelector((state) => state.interactionRuntime.data);
   const runtimeFieldStates = useAppSelector((state) => state.interactionRuntime.componentState.fields);
+  const runtimeDetailTableStates = useAppSelector((state) => state.interactionRuntime.componentState.detailTables);
   const validationErrors = useAppSelector((state) => state.interactionRuntime.validationErrors);
 
   const pageChildren = useMemo(() => runtimeForm?.nodesById.page_root?.childrenIds ?? [], [runtimeForm]);
@@ -150,8 +157,8 @@ export function RecordListPage() {
     return String(record.id);
   };
 
-  const getRelationDisplayValue = (node: Node, detailTableKey?: string, rowIndex?: number) =>
-    relationDisplayValues[buildRelationDisplayKey(node, detailTableKey, rowIndex)];
+  const getRelationDisplayValue = (node: Node, detailTableKey?: string, rowId?: string) =>
+    relationDisplayValues[buildRelationDisplayKey(node, detailTableKey, rowId)];
 
   const loadPage = async () => {
     if (!formId || !formCode) {
@@ -250,22 +257,39 @@ export function RecordListPage() {
     if (readonly) {
       return;
     }
-    const rowsToAppend = Array.from({ length: Math.max(defaultRowCount, 1) }, () => buildDefaultDetailRow(columnNodes));
-    dispatch(appendDetailRow({ detailTableKey, rows: rowsToAppend }));
+    const rowsToAppend = Array.from({ length: Math.max(defaultRowCount, 1) }, () =>
+      createDetailRowRuntime(buildDefaultDetailRow(columnNodes))
+    );
+    dispatch(appendDetailRows({ detailTableKey, rows: rowsToAppend }));
+    rowsToAppend.forEach((row) => {
+      dispatch(enqueueRuntimeEvent(createDetailRowAddedRuntimeEvent(detailTableKey, row.__rowId, "user")));
+    });
   };
 
-  const handleRemoveDetailRow = (detailTableKey: string, rowIndex: number) => {
+  const handleRemoveDetailRow = (detailTableKey: string, rowId: string) => {
     if (readonly) {
       return;
     }
-    dispatch(removeDetailRow({ detailTableKey, rowIndex }));
+    dispatch(removeDetailRow({ detailTableKey, rowId }));
+    dispatch(enqueueRuntimeEvent(createDetailRowRemovedRuntimeEvent(detailTableKey, rowId, "user")));
   };
 
-  const handleDetailValueChange = (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => {
+  const handleDetailValueChange = (detailTableKey: string, rowId: string, fieldKey: string, value: unknown) => {
     if (readonly) {
       return;
     }
-    dispatch(setDetailFieldValue({ detailTableKey, rowIndex, fieldKey, value }));
+    dispatch(setDetailFieldValue({ detailTableKey, rowId, fieldKey, value }));
+    dispatch(
+      enqueueRuntimeEvent(
+        createDetailFieldChangeRuntimeEvent({
+          detailTableKey,
+          rowId,
+          fieldKey,
+          value,
+          source: "user",
+        })
+      )
+    );
   };
 
   const ensureRecord = async () => {
@@ -356,11 +380,21 @@ export function RecordListPage() {
     }
   };
 
-  const openRelationDialog = (node: Node, detailTableKey?: string, rowIndex?: number) => {
-    const context = { node, detailTableKey, rowIndex };
+  const openRelationDialog = (node: Node, detailTableKey?: string, rowId?: string) => {
+    const context = { node, detailTableKey, rowId };
     setRelationDialogContext(context);
     setRelationDialogOpen(true);
     setRelationKeyword("");
+    dispatch(
+      enqueueRuntimeEvent(
+        createRelationOpenRuntimeEvent({
+          fieldKey: getFieldKey(node),
+          detailTableKey,
+          rowId,
+          source: "user",
+        })
+      )
+    );
     void loadRelationRecords(context, "");
   };
 
@@ -392,40 +426,79 @@ export function RecordListPage() {
       ? relationDialogContext.node.props.mappings.filter((item): item is { targetFieldKey?: unknown; currentFieldKey?: unknown } => typeof item === "object" && item !== null)
       : [];
 
-    if (relationDialogContext.detailTableKey && typeof relationDialogContext.rowIndex === "number") {
+    if (relationDialogContext.detailTableKey && relationDialogContext.rowId) {
       dispatch(setDetailFieldValue({
         detailTableKey: relationDialogContext.detailTableKey!,
-        rowIndex: relationDialogContext.rowIndex!,
+        rowId: relationDialogContext.rowId!,
         fieldKey,
         value: selectedRecord.id,
       }));
+      dispatch(
+        enqueueRuntimeEvent(
+          createDetailFieldChangeRuntimeEvent({
+            detailTableKey: relationDialogContext.detailTableKey!,
+            rowId: relationDialogContext.rowId!,
+            fieldKey,
+            value: selectedRecord.id,
+            source: "user",
+          })
+        )
+      );
       mappings.forEach((mapping) => {
         const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
         const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
         if (targetFieldKey && currentFieldKey) {
+          const mappedValue = selectedRecord.mainData[targetFieldKey];
           dispatch(setDetailFieldValue({
             detailTableKey: relationDialogContext.detailTableKey!,
-            rowIndex: relationDialogContext.rowIndex!,
+            rowId: relationDialogContext.rowId!,
             fieldKey: currentFieldKey,
-            value: selectedRecord.mainData[targetFieldKey],
+            value: mappedValue,
           }));
+          dispatch(
+            enqueueRuntimeEvent(
+              createDetailFieldChangeRuntimeEvent({
+                detailTableKey: relationDialogContext.detailTableKey!,
+                rowId: relationDialogContext.rowId!,
+                fieldKey: currentFieldKey,
+                value: mappedValue,
+                source: "user",
+              })
+            )
+          );
         }
       });
     } else {
       dispatch(setMainFieldValue({ fieldKey, value: selectedRecord.id }));
+      dispatch(enqueueRuntimeEvent(createMainFieldChangeRuntimeEvent(fieldKey, selectedRecord.id, "user")));
       mappings.forEach((mapping) => {
         const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
         const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
         if (targetFieldKey && currentFieldKey) {
-          dispatch(setMainFieldValue({ fieldKey: currentFieldKey, value: selectedRecord.mainData[targetFieldKey] }));
+          const mappedValue = selectedRecord.mainData[targetFieldKey];
+          dispatch(setMainFieldValue({ fieldKey: currentFieldKey, value: mappedValue }));
+          dispatch(enqueueRuntimeEvent(createMainFieldChangeRuntimeEvent(currentFieldKey, mappedValue, "user")));
         }
       });
     }
 
     setRelationDisplayValues((current) => ({
       ...current,
-      [buildRelationDisplayKey(relationDialogContext.node, relationDialogContext.detailTableKey, relationDialogContext.rowIndex)]: displayText,
+      [buildRelationDisplayKey(relationDialogContext.node, relationDialogContext.detailTableKey, relationDialogContext.rowId)]: displayText,
     }));
+
+    dispatch(
+      enqueueRuntimeEvent(
+        createRelationSelectedRuntimeEvent({
+          fieldKey,
+          selectedRecordId: selectedRecord.id,
+          selectedRecord: selectedRecord.mainData,
+          detailTableKey: relationDialogContext.detailTableKey,
+          rowId: relationDialogContext.rowId,
+          source: "user",
+        })
+      )
+    );
 
     closeRelationDialog();
   };
@@ -582,6 +655,7 @@ export function RecordListPage() {
                   onOpenRelationSelect={openRelationDialog}
                   getRelationDisplayValue={getRelationDisplayValue}
                   fieldStates={runtimeFieldStates}
+                  detailTableStates={runtimeDetailTableStates}
                   validationErrors={validationErrors}
                 />
               </Flex>

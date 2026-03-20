@@ -41,6 +41,8 @@ const COMMAND_OPTIONS = [
   { label: "设置显示", value: "setVisible" },
   { label: "设置只读", value: "setReadonly" },
   { label: "设置必填", value: "setRequired" },
+  { label: "设置选项", value: "setOptions" },
+  { label: "设置筛选条件", value: "setFilter" },
 ];
 
 function useCurrentFormFieldOptions(formId: string | null) {
@@ -80,10 +82,20 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
     () => new Map(fieldSelectOptions.map((item) => [item.value, item.label])),
     [fieldSelectOptions]
   );
-  const showFieldReference = selectedNode?.type === "condition" || selectedNode?.type === "query" || selectedNode?.type === "transform";
+  const showFieldReference =
+    selectedNode?.type === "condition" ||
+    selectedNode?.type === "query" ||
+    selectedNode?.type === "transform" ||
+    selectedNode?.type === "context";
   const showTriggerTarget = selectedNode?.type === "trigger";
   const showCommandConfig = selectedNode?.type === "command";
-  const showBranchSelector = selectedNode?.type === "condition" || selectedNode?.type === "query" || selectedNode?.type === "transform" || selectedNode?.type === "notice";
+  const showContextConfig = selectedNode?.type === "context";
+  const showBranchSelector =
+    selectedNode?.type === "condition" ||
+    selectedNode?.type === "query" ||
+    selectedNode?.type === "transform" ||
+    selectedNode?.type === "context" ||
+    selectedNode?.type === "notice";
 
   if (!selectedNode) {
     const empty = <Empty description="请选择一个节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
@@ -170,22 +182,33 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
           <Select
             showSearch
             allowClear
-            value={typeof selectedNode.data.targetField === "string" && selectedNode.data.targetField ? selectedNode.data.targetField : undefined}
+            value={
+              typeof selectedNode.data.triggerTarget === "string" && selectedNode.data.triggerTarget
+                ? selectedNode.data.triggerTarget
+                : typeof selectedNode.data.targetField === "string" && selectedNode.data.targetField
+                  ? selectedNode.data.targetField
+                  : undefined
+            }
             options={fieldSelectOptions}
             onChange={(value) =>
-              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { targetField: String(value ?? "") } }))
+              dispatch(
+                updateRuleNodeData({
+                  nodeId: selectedNode.id,
+                  patch: { triggerTarget: String(value ?? ""), targetField: String(value ?? "") },
+                })
+              )
             }
             placeholder={fieldSelectOptions.length > 0 ? "选择触发字段" : "当前表单暂无可选字段"}
             optionFilterProp="label"
             style={{ width: "100%" }}
             notFoundContent="当前表单暂无可选字段"
           />
-          {typeof selectedNode.data.targetField === "string" &&
-          selectedNode.data.targetField &&
-          fieldOptionMap.has(selectedNode.data.targetField) ? null : typeof selectedNode.data.targetField === "string" &&
-            selectedNode.data.targetField ? (
+          {typeof (selectedNode.data.triggerTarget ?? selectedNode.data.targetField) === "string" &&
+          String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField) &&
+          fieldOptionMap.has(String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField)) ? null : typeof (selectedNode.data.triggerTarget ?? selectedNode.data.targetField) === "string" &&
+            String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField) ? (
             <Typography.Text type="danger">
-              当前值未匹配到字段，保留原配置：{selectedNode.data.targetField}
+              当前值未匹配到字段，保留原配置：{String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField)}
             </Typography.Text>
           ) : null}
         </div>
@@ -219,10 +242,16 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
         <div>
           <Typography.Text type="secondary">命令/动作</Typography.Text>
           <Select
-            value={typeof selectedNode.data.command === "string" ? selectedNode.data.command : "setValue"}
+            value={
+              typeof selectedNode.data.commandType === "string"
+                ? selectedNode.data.commandType
+                : typeof selectedNode.data.command === "string"
+                  ? selectedNode.data.command
+                  : "setValue"
+            }
             options={COMMAND_OPTIONS}
             onChange={(value) =>
-              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { command: value } }))
+              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { commandType: value, command: value } }))
             }
             style={{ width: "100%" }}
           />
@@ -253,6 +282,40 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
           <Typography.Text type="secondary">
             操作字段已改为从当前表单字段中选择，运行时会按所选字段路径执行命令。
           </Typography.Text>
+        </>
+      ) : null}
+      {showContextConfig ? (
+        <>
+          <div>
+            <Typography.Text type="secondary">写入变量名</Typography.Text>
+            <Input
+              value={String(selectedNode.data.saveAs ?? "")}
+              onChange={(event) =>
+                dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { saveAs: event.target.value } }))
+              }
+              placeholder="例如 temp.totalAmount / matchedRecord"
+            />
+          </div>
+          <div>
+            <Typography.Text type="secondary">变量来源</Typography.Text>
+            <Input
+              value={String(selectedNode.data.valueFrom ?? "")}
+              onChange={(event) =>
+                dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { valueFrom: event.target.value } }))
+              }
+              placeholder="例如 main.amount / event.value / temp.queryResult"
+            />
+          </div>
+          <div>
+            <Typography.Text type="secondary">兜底字面量值</Typography.Text>
+            <Input
+              value={String(selectedNode.data.literalValue ?? "")}
+              onChange={(event) =>
+                dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { literalValue: event.target.value } }))
+              }
+              placeholder="来源为空时写入的值"
+            />
+          </div>
         </>
       ) : null}
       {showBranchSelector ? (

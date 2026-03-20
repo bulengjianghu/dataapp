@@ -1,5 +1,6 @@
 import { request } from "../../../services/api";
 import { PAGE_NODE_ID, createEmptyNodesById, type Node, type NodesById } from "../../../types/schema/node";
+import { normalizeDetailRows, type DetailRowRuntime } from "../../../store/slices/interactionRuntimeSlice";
 
 export type RuntimeFormResponse = {
   formId: number;
@@ -13,7 +14,7 @@ export type RuntimeFormResponse = {
 
 export type RecordRuntimeData = {
   mainData: Record<string, unknown>;
-  detailTables: Record<string, Array<Record<string, unknown>>>;
+  detailTables: Record<string, DetailRowRuntime[]>;
 };
 
 export type RecordDetailResponse = {
@@ -157,7 +158,12 @@ export function getRelationFieldLabel(nodesById: NodesById | undefined, fieldKey
 function toRuntimePayload(data: RecordRuntimeData) {
   return {
     mainData: data.mainData ?? {},
-    detailTables: data.detailTables ?? {},
+    detailTables: Object.fromEntries(
+      Object.entries(data.detailTables ?? {}).map(([detailTableKey, rows]) => [
+        detailTableKey,
+        (rows ?? []).map((row) => row.values),
+      ])
+    ),
   };
 }
 
@@ -187,7 +193,16 @@ export async function submitRecord(recordId: number, data: RecordRuntimeData) {
 }
 
 export async function loadRecordDetail(recordId: number) {
-  return request<RecordDetailResponse>(`/api/records/${recordId}`);
+  const detail = await request<RecordDetailResponse>(`/api/records/${recordId}`);
+  return {
+    ...detail,
+    detailTables: Object.fromEntries(
+      Object.entries(detail.detailTables ?? {}).map(([detailTableKey, rows]) => [
+        detailTableKey,
+        normalizeDetailRows(rows),
+      ])
+    ),
+  };
 }
 
 export async function listRecordsByForm(formId: number) {

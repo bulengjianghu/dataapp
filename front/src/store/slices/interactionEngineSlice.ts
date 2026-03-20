@@ -23,7 +23,7 @@ export type ExecutionTrace = {
   executionId: string;
   ruleId: string;
   nodeId: string;
-  nodeType: RuleNodeType | "context";
+  nodeType: RuleNodeType;
   status: "running" | "success" | "failed" | "skipped";
   inputSummary?: string;
   outputSummary?: string;

@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import type { RuleNodeType } from "./interactionRuleGraphSlice";
 
 export type InteractionEventType =
   | "FIELD_CHANGE_MAIN"
@@ -32,13 +33,24 @@ export type RuleReferenceSummary = {
   events: string[];
 };
 
+export type CompiledInteractionStep = {
+  id: string;
+  type: Exclude<RuleNodeType, "trigger">;
+  order: number;
+  data: Record<string, unknown>;
+  next?: Array<{
+    target: string;
+    branch?: "success" | "failure" | "true" | "false" | "empty" | "nonEmpty";
+  }>;
+};
+
 export type CompiledInteractionRule = {
   ruleId: string;
   eventType: InteractionEventType;
   triggerScope: "MAIN_FIELD" | "DETAIL_ROW" | "RECORD" | "GLOBAL";
   triggerTarget?: string;
   priority: number;
-  steps: Array<Record<string, unknown>>;
+  steps: CompiledInteractionStep[];
   failurePolicy: "interrupt" | "continue" | "fallback";
   references: RuleReferenceSummary;
 };
@@ -121,7 +133,7 @@ export function deserializeCompiledInteractionRule(
     triggerScope,
     triggerTarget: typeof compiledJson.triggerTarget === "string" ? compiledJson.triggerTarget : undefined,
     priority,
-    steps: steps as Array<Record<string, unknown>>,
+    steps: steps as CompiledInteractionStep[],
     failurePolicy,
     references: {
       fields: Array.isArray(referencePayload?.fields) ? referencePayload.fields : [],

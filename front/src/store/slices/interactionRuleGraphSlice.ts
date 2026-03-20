@@ -6,8 +6,8 @@ export type RuleNodeType =
   | "query"
   | "transform"
   | "command"
-  | "notice"
-  | "end";
+  | "context"
+  | "notice";
 
 export type RuleGraphNode = {
   id: string;
@@ -87,6 +87,7 @@ const interactionRuleGraphSlice = createSlice({
       state,
       action: PayloadAction<{
         formId: string | null;
+        formVersionId?: string | null;
         ruleId: string | null;
         graph?: Partial<InteractionRuleGraphState["graph"]>;
         selectedNodeId?: string | null;
@@ -94,6 +95,7 @@ const interactionRuleGraphSlice = createSlice({
       }>
     ) => {
       state.formId = action.payload.formId;
+      state.formVersionId = action.payload.formVersionId ?? null;
       state.ruleId = action.payload.ruleId;
       state.graph = {
         nodes: action.payload.graph?.nodes ?? [],

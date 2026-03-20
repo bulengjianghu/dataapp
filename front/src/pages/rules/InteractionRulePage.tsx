@@ -57,6 +57,10 @@ import { RuleEdgePropertyPanel } from "./components/RuleEdgePropertyPanel";
 import { RuleGraphCanvas } from "./components/RuleGraphCanvas";
 import { RuleNodePropertyPanel } from "./components/RuleNodePropertyPanel";
 import { RulePalette } from "./components/RulePalette";
+import {
+  createDefaultRuleNode,
+  RULE_NODE_PALETTE_ITEMS,
+} from "./services/interactionRuleNodeCatalog";
 import { precompileInteractionRule } from "./services/interactionRuleCompiler";
 import { loadInteractionRuleFieldOptions } from "./services/interactionRuleFormFields";
 import { layoutInteractionRuleGraph } from "./services/interactionRuleLayout";
@@ -79,21 +83,6 @@ const EVENT_TYPE_OPTIONS: { label: string; value: InteractionEventType }[] = [
   { label: "关联选择确认", value: "RELATION_SELECTED" },
   { label: "表单初始化", value: "FORM_INIT" },
   { label: "提交前校验", value: "FORM_SUBMIT_BEFORE" },
-];
-
-const NODE_PALETTE_ITEMS: Array<{
-  type: RuleNodeType;
-  label: string;
-  description: string;
-  accent: string;
-}> = [
-  { type: "trigger", label: "触发器", description: "规则起点，描述事件来源和触发目标。", accent: "#1677ff" },
-  { type: "condition", label: "条件", description: "根据表达式决定 true / false 分支。", accent: "#faad14" },
-  { type: "query", label: "查询", description: "读取当前表单、上下文或外部数据。", accent: "#13c2c2" },
-  { type: "transform", label: "转换", description: "做字段映射、过滤、聚合、计算。", accent: "#52c41a" },
-  { type: "command", label: "命令", description: "向运行时发出 setValue / setReadonly 等命令。", accent: "#722ed1" },
-  { type: "notice", label: "通知", description: "给用户提示或写入调试日志。", accent: "#eb2f96" },
-  { type: "end", label: "结束", description: "显式收束流程，便于表达闭环。", accent: "#2f54eb" },
 ];
 
 const AUTO_SAVE_DELAY = 1500;
@@ -143,10 +132,6 @@ function createRuleDraftFingerprint(
   });
 }
 
-function createNodeId() {
-  return `node_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
-}
-
 function normalizeGraphPayload(payload: Record<string, unknown> | undefined) {
   const rawNodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
   const rawEdges = Array.isArray(payload?.edges) ? payload.edges : [];
@@ -174,31 +159,6 @@ function normalizeGraphPayload(payload: Record<string, unknown> | undefined) {
       rawViewport && typeof rawViewport === "object"
         ? (rawViewport as { x: number; y: number; zoom: number })
         : { x: 0, y: 0, zoom: 1 },
-  };
-}
-
-function createDefaultNode(type: RuleNodeType, position: { x: number; y: number }): RuleGraphNode {
-  const labels: Record<RuleNodeType, string> = {
-    trigger: "字段触发器",
-    condition: "条件判断",
-    query: "数据查询",
-    transform: "数据转换",
-    command: "执行命令",
-    notice: "用户提示",
-    end: "结束节点",
-  };
-  return {
-    id: createNodeId(),
-    type,
-    position,
-    data: {
-      label: labels[type],
-      description: "",
-      targetField: "",
-      fieldKey: "",
-      command: type === "command" ? "setValue" : "",
-      branch: "success",
-    },
   };
 }
 
@@ -675,7 +635,7 @@ export function InteractionRulePage() {
   };
 
   const handleAddNode = (type: RuleNodeType, position?: { x: number; y: number }) => {
-    const nextNode = createDefaultNode(type, position ?? { x: 120, y: 120 + graphModel.nodes.length * 48 });
+    const nextNode = createDefaultRuleNode(type, position ?? { x: 120, y: 120 + graphModel.nodes.length * 48 });
     dispatch(addRuleNode(nextNode));
     dispatch(markRuleGraphDirty(true));
   };
@@ -746,7 +706,7 @@ export function InteractionRulePage() {
 
           <div className="interaction-rule-page__layout interaction-rule-page__layout--editor">
           <div className="interaction-rule-page__column">
-            <RulePalette items={NODE_PALETTE_ITEMS} onAdd={(type) => handleAddNode(type)} />
+            <RulePalette items={RULE_NODE_PALETTE_ITEMS} onAdd={(type) => handleAddNode(type)} />
           </div>
 
           <div className="interaction-rule-page__center">

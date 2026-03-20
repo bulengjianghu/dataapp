@@ -1,4 +1,5 @@
 import type {
+  CompiledInteractionStep,
   CompiledInteractionRule,
   InteractionEventType,
 } from "../../../store/slices/interactionRuleDraftSlice";
@@ -8,6 +9,9 @@ import type {
   RuleGraphNode,
   RuleReferenceSummary,
 } from "../../../store/slices/interactionRuleGraphSlice";
+
+const STEP_BRANCHES = new Set(["success", "failure", "true", "false", "empty", "nonEmpty"] as const);
+type CompiledStepBranch = "success" | "failure" | "true" | "false" | "empty" | "nonEmpty";
 
 function resolveTriggerScope(eventType: InteractionEventType): CompiledInteractionRule["triggerScope"] {
   switch (eventType) {
@@ -33,6 +37,18 @@ function collectReferenceValues(nodes: RuleGraphNode[], key: string) {
         .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     )
   );
+}
+
+function collectNodeFieldReference(node: RuleGraphNode, key: string) {
+  const value = node.data[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function readTriggerTarget(node: RuleGraphNode | undefined) {
+  if (!node) {
+    return undefined;
+  }
+  return collectNodeFieldReference(node, "triggerTarget") ?? collectNodeFieldReference(node, "targetField") ?? undefined;
 }
 
 function isKnownFieldPath(value: unknown, availableFieldKeys: Set<string>) {
@@ -173,7 +189,8 @@ export function precompileInteractionRule(params: {
   });
 
   params.graphState.graph.nodes.forEach((node) => {
-    if (node.type === "trigger" && !(typeof node.data.targetField === "string" && node.data.targetField.trim())) {
+    const triggerTarget = readTriggerTarget(node);
+    if (node.type === "trigger" && !triggerTarget) {
       diagnostics.push({
         id: `trigger_target_invalid_${node.id}`,
         level: "error",
@@ -184,23 +201,27 @@ export function precompileInteractionRule(params: {
     }
     if (
       node.type === "trigger" &&
-      typeof node.data.targetField === "string" &&
-      node.data.targetField.trim() &&
+      triggerTarget &&
       availableFieldKeys.size > 0 &&
-      !isKnownFieldPath(node.data.targetField, availableFieldKeys)
+      !isKnownFieldPath(triggerTarget, availableFieldKeys)
     ) {
       diagnostics.push({
         id: `trigger_target_unknown_${node.id}`,
         level: "error",
         nodeId: node.id,
         code: "trigger_target_unknown",
-        message: `触发器节点引用的字段已不存在：${node.data.targetField}`,
+        message: `触发器节点引用的字段已不存在：${triggerTarget}`,
       });
     }
 
     if (node.type === "command") {
       const fieldKey = typeof node.data.fieldKey === "string" ? node.data.fieldKey.trim() : "";
-      const command = typeof node.data.command === "string" ? node.data.command.trim() : "";
+      const command =
+        typeof node.data.commandType === "string"
+          ? node.data.commandType.trim()
+          : typeof node.data.command === "string"
+            ? node.data.command.trim()
+            : "";
       if (!fieldKey) {
         diagnostics.push({
           id: `command_target_missing_${node.id}`,
@@ -231,7 +252,10 @@ export function precompileInteractionRule(params: {
     }
 
     if (
-      (node.type === "condition" || node.type === "query" || node.type === "transform") &&
+      (node.type === "condition" ||
+        node.type === "query" ||
+        node.type === "transform" ||
+        node.type === "context") &&
       typeof node.data.fieldKey === "string" &&
       node.data.fieldKey.trim() &&
       availableFieldKeys.size > 0 &&
@@ -248,16 +272,21 @@ export function precompileInteractionRule(params: {
   });
 
   const references: RuleReferenceSummary = {
-    fields: collectReferenceValues(params.graphState.graph.nodes, "fieldKey"),
+    fields: Array.from(
+      new Set(
+        params.graphState.graph.nodes.flatMap((node) =>
+          [collectNodeFieldReference(node, "fieldKey"), collectNodeFieldReference(node, "triggerTarget"), collectNodeFieldReference(node, "targetField")].filter(
+            (value): value is string => Boolean(value)
+          )
+        )
+      )
+    ),
     detailTables: collectReferenceValues(params.graphState.graph.nodes, "detailTableKey"),
     forms: collectReferenceValues(params.graphState.graph.nodes, "formCode"),
     events: [params.eventType],
   };
 
-  const triggerTarget =
-    typeof triggerNode?.data.targetField === "string" && triggerNode.data.targetField.trim()
-      ? triggerNode.data.targetField
-      : undefined;
+  const triggerTarget = readTriggerTarget(triggerNode);
   const compiledRule: CompiledInteractionRule | null =
     diagnostics.some((item) => item.level === "error") || !params.ruleId
       ? null
@@ -267,7 +296,31 @@ export function precompileInteractionRule(params: {
           triggerScope: resolveTriggerScope(params.eventType),
           triggerTarget,
           priority: params.priority,
-          steps: plan.map((step, index) => ({ ...step, order: index })),
+          steps: plan.map(
+            (step, index): CompiledInteractionStep => ({
+              id: String(step.id ?? ""),
+              type: step.type as CompiledInteractionStep["type"],
+              data:
+                step.type === "command"
+                  ? {
+                      ...((step.data as Record<string, unknown>) ?? {}),
+                      commandType:
+                        typeof (step.data as Record<string, unknown>)?.commandType === "string"
+                          ? (step.data as Record<string, unknown>).commandType
+                          : (step.data as Record<string, unknown>)?.command,
+                    }
+                  : ((step.data as Record<string, unknown>) ?? {}),
+              next: Array.isArray(step.next)
+                ? step.next.map((item) => ({
+                    target: String((item as { target?: unknown }).target ?? ""),
+                    branch: STEP_BRANCHES.has((item as { branch?: unknown }).branch as never)
+                      ? ((item as { branch?: CompiledStepBranch }).branch ?? "success")
+                      : "success",
+                  }))
+                : [],
+              order: index,
+            })
+          ),
           failurePolicy: "continue",
           references,
         };

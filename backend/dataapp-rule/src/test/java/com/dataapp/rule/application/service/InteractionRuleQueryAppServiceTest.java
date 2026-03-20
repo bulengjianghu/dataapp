@@ -8,6 +8,7 @@ import com.dataapp.rule.domain.repository.InteractionRuleRepository;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftListItemResponse;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftResponse;
 import com.dataapp.rule.interfaces.dto.InteractionRulePublishedResponse;
+import com.dataapp.rule.interfaces.dto.InteractionRuntimeRuleResponse;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -188,5 +190,79 @@ class InteractionRuleQueryAppServiceTest {
         assertThat(response.versionId()).isEqualTo(4001L);
         assertThat(response.status()).isEqualTo("ACTIVE");
         assertThat(response.publishedSnapshotJson()).containsEntry("ruleCode", "IR-2001");
+    }
+
+    @Test
+    void shouldListPublishedRuntimeRulesByFormScopeAndPriority() {
+        InteractionRuleQueryAppService service = new InteractionRuleQueryAppService(
+            interactionRuleRepository,
+            new ObjectMapper()
+        );
+        when(interactionRuleRepository.listPublishedVersionsByFormId(1001L)).thenReturn(List.of(
+            new InteractionRuleVersion(
+                5001L,
+                2001L,
+                3,
+                "INTERACTION",
+                1001L,
+                null,
+                "FIELD_CHANGE_MAIN",
+                100,
+                Map.of("ruleCode", "IR-2001", "ruleName", "低优先级"),
+                Map.of(),
+                Map.of("triggerScope", "MAIN_FIELD", "triggerTarget", "main.low", "failurePolicy", "continue"),
+                Map.of(),
+                "continue",
+                "v0.3.0",
+                1L,
+                OffsetDateTime.parse("2026-03-20T11:00:00+08:00"),
+                "ACTIVE"
+            ),
+            new InteractionRuleVersion(
+                5002L,
+                2002L,
+                4,
+                "INTERACTION",
+                1001L,
+                9001L,
+                "FORM_INIT",
+                500,
+                Map.of("ruleCode", "IR-2002", "ruleName", "高优先级"),
+                Map.of(),
+                Map.of("triggerScope", "RECORD", "failurePolicy", "interrupt"),
+                Map.of(),
+                "interrupt",
+                "v0.3.0",
+                1L,
+                OffsetDateTime.parse("2026-03-20T11:05:00+08:00"),
+                "ACTIVE"
+            ),
+            new InteractionRuleVersion(
+                5003L,
+                2003L,
+                1,
+                "INTERACTION",
+                1001L,
+                9002L,
+                "FORM_INIT",
+                900,
+                Map.of("ruleCode", "IR-2003", "ruleName", "其他版本"),
+                Map.of(),
+                Map.of("triggerScope", "RECORD", "failurePolicy", "continue"),
+                Map.of(),
+                "continue",
+                "v0.3.0",
+                1L,
+                OffsetDateTime.parse("2026-03-20T11:10:00+08:00"),
+                "ACTIVE"
+            )
+        ));
+
+        List<InteractionRuntimeRuleResponse> response = service.listRuntimeRules(1001L, 9001L);
+
+        assertThat(response).hasSize(2);
+        assertThat(response).extracting(InteractionRuntimeRuleResponse::ruleId).containsExactly(2002L, 2001L);
+        assertThat(response.getFirst().triggerScope()).isEqualTo("RECORD");
+        assertThat(response.get(1).triggerTarget()).isEqualTo("main.low");
     }
 }

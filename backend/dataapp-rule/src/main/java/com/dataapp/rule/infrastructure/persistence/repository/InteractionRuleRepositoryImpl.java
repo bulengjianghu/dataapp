@@ -82,25 +82,14 @@ public class InteractionRuleRepositoryImpl implements InteractionRuleRepository 
         if (po == null) {
             return null;
         }
-        return new InteractionRuleVersion(
-            po.getId(),
-            po.getRuleId(),
-            po.getVersionNo(),
-            po.getRuleType(),
-            po.getFormId(),
-            po.getFormVersionId(),
-            po.getEventType(),
-            po.getPriority(),
-            readJson(po.getPublishedSnapshotJson()),
-            readJson(po.getCompiledJson()),
-            readJson(po.getNormalizedJson()),
-            readJson(po.getDependencyJson()),
-            po.getFailurePolicy(),
-            po.getCompilerVersion(),
-            po.getPublishedBy(),
-            po.getPublishedAt(),
-            po.getStatus()
-        );
+        return toVersion(po);
+    }
+
+    @Override
+    public List<InteractionRuleVersion> listPublishedVersionsByFormId(Long formId) {
+        return interactionRuleMapper.selectPublishedVersionsByFormId(formId).stream()
+            .map(this::toVersion)
+            .toList();
     }
 
     @Override
@@ -174,6 +163,28 @@ public class InteractionRuleRepositoryImpl implements InteractionRuleRepository 
         po.setCurrentVersionId(definition.getCurrentVersionId());
         po.setDescription(definition.getDescription());
         return po;
+    }
+
+    private InteractionRuleVersion toVersion(RuleVersionPO po) {
+        return new InteractionRuleVersion(
+            po.getId(),
+            po.getRuleId(),
+            po.getVersionNo(),
+            po.getRuleType(),
+            po.getFormId(),
+            po.getFormVersionId(),
+            po.getEventType(),
+            po.getPriority(),
+            readJson(po.getPublishedSnapshotJson()),
+            readJson(po.getCompiledJson()),
+            readJson(po.getNormalizedJson()),
+            readJson(po.getDependencyJson()),
+            po.getFailurePolicy(),
+            po.getCompilerVersion(),
+            po.getPublishedBy(),
+            po.getPublishedAt(),
+            po.getStatus()
+        );
     }
 
     private RuleDraftPO toDraftPO(InteractionRuleDraft draft) {

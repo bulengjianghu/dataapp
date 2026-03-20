@@ -1,9 +1,9 @@
 import { DeleteOutlined, LinkOutlined, PlusOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Checkbox, Empty, Flex, Input, InputNumber, Select, Space, Table, Tag, Typography } from "antd";
 import type { CheckboxGroupProps } from "antd/es/checkbox";
-import type { DefaultOptionType } from "antd/es/select";
 import type { ColumnsType } from "antd/es/table";
 import type { Node, NodesById } from "../../../types/schema/node";
+import type { BaseFieldState } from "../../../store/slices/interactionRuntimeSlice";
 import { ContainerLayout } from "../../editor/components/formDesign/shared/ContainerLayout";
 import type { RecordRuntimeData } from "../services/recordRuntime";
 
@@ -19,7 +19,7 @@ function toCheckboxOptions(options: unknown): CheckboxGroupProps<string>["option
     }));
 }
 
-function toSelectOptions(options: unknown): DefaultOptionType[] {
+function toSelectOptions(options: unknown): Array<{ label: string; value: string }> {
   if (!Array.isArray(options)) {
     return [];
   }
@@ -41,6 +41,7 @@ function getFieldKey(node: Node) {
 
 function renderFieldInput(
   node: Node,
+  fieldState: BaseFieldState | undefined,
   value: unknown,
   displayValue: string | undefined,
   disabled: boolean,
@@ -96,7 +97,7 @@ function renderFieldInput(
           value={typeof value === "string" ? value : undefined}
           placeholder={placeholder || "请选择"}
           disabled={disabled}
-          options={toSelectOptions(node.props.options)}
+          options={fieldState?.select?.options?.length ? fieldState.select.options : toSelectOptions(node.props.options)}
           onChange={(nextValue) => onChange(nextValue)}
         />
       );
@@ -105,7 +106,7 @@ function renderFieldInput(
         <Checkbox.Group
           value={Array.isArray(value) ? (value as string[]) : []}
           disabled={disabled}
-          options={toCheckboxOptions(node.props.options)}
+          options={fieldState?.select?.options?.length ? fieldState.select.options : toCheckboxOptions(node.props.options)}
           onChange={(nextValue) => onChange(nextValue)}
         />
       );
@@ -133,6 +134,8 @@ function renderFieldInput(
 function MainFieldRenderer({
   node,
   data,
+  fieldState,
+  validationErrors,
   readonly,
   onMainValueChange,
   onOpenRelationSelect,
@@ -140,6 +143,8 @@ function MainFieldRenderer({
 }: {
   node: Node;
   data: Record<string, unknown>;
+  fieldState?: BaseFieldState;
+  validationErrors?: string[];
   readonly: boolean;
   onMainValueChange: (fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node) => void;
@@ -147,23 +152,36 @@ function MainFieldRenderer({
 }) {
   const fieldKey = getFieldKey(node);
   const label = getFieldLabel(node);
-  const helpText = typeof node.props.helpText === "string" ? node.props.helpText : "";
+  const helpText = fieldState?.hint ?? (typeof node.props.helpText === "string" ? node.props.helpText : "");
+  const visible = fieldState?.visible ?? true;
+  const disabled = readonly || fieldState?.readonly === true || fieldState?.disabled === true;
+  const required = fieldState?.required ?? Boolean(node.props.required);
+
+  if (!visible) {
+    return null;
+  }
 
   return (
     <Flex vertical gap={8}>
       <Typography.Text strong>
-        {Boolean(node.props.required) ? <span className="runtime-node__required">*</span> : null}
+        {required ? <span className="runtime-node__required">*</span> : null}
         {label}
       </Typography.Text>
       {renderFieldInput(
         node,
+        fieldState,
         data[fieldKey],
         getRelationDisplayValue(node),
-        readonly,
+        disabled,
         (nextValue) => onMainValueChange(fieldKey, nextValue),
         () => onOpenRelationSelect(node)
       )}
       {helpText ? <Typography.Text type="secondary">{helpText}</Typography.Text> : null}
+      {validationErrors?.map((message) => (
+        <Typography.Text key={message} type="danger">
+          {message}
+        </Typography.Text>
+      ))}
     </Flex>
   );
 }
@@ -178,6 +196,8 @@ function DetailTableRuntimeBlock({
   onDetailValueChange,
   onOpenRelationSelect,
   getRelationDisplayValue,
+  fieldStates,
+  validationErrors,
 }: {
   node: Node;
   nodesById: NodesById;
@@ -188,6 +208,8 @@ function DetailTableRuntimeBlock({
   onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node, detailTableKey: string, rowIndex: number) => void;
   getRelationDisplayValue: (node: Node, detailTableKey: string, rowIndex: number) => string | undefined;
+  fieldStates: Record<string, BaseFieldState>;
+  validationErrors: Record<string, string[]>;
 }) {
   const detailTableKey = getFieldKey(node);
   const title = (node.props.title as string | undefined) ?? "明细表";
@@ -209,10 +231,11 @@ function DetailTableRuntimeBlock({
         render: (_, __, rowIndex) =>
           renderFieldInput(
             columnNode,
+            fieldStates[fieldKey],
             rows[rowIndex]?.[fieldKey],
             getRelationDisplayValue(columnNode, detailTableKey, rowIndex),
             readonly,
-            (nextValue) => onDetailValueChange(detailTableKey, rowIndex, fieldKey, nextValue),
+            (nextValue: unknown) => onDetailValueChange(detailTableKey, rowIndex, fieldKey, nextValue),
             () => onOpenRelationSelect(columnNode, detailTableKey, rowIndex)
           ),
       };
@@ -283,6 +306,8 @@ function RuntimeFillNode({
   onDetailValueChange,
   onOpenRelationSelect,
   getRelationDisplayValue,
+  fieldStates,
+  validationErrors,
 }: {
   node: Node;
   nodesById: NodesById;
@@ -294,6 +319,8 @@ function RuntimeFillNode({
   onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
   getRelationDisplayValue: (node: Node, detailTableKey?: string, rowIndex?: number) => string | undefined;
+  fieldStates: Record<string, BaseFieldState>;
+  validationErrors: Record<string, string[]>;
 }) {
   if (node.type === "container") {
     return (
@@ -317,6 +344,8 @@ function RuntimeFillNode({
                 onDetailValueChange={onDetailValueChange}
                 onOpenRelationSelect={onOpenRelationSelect}
                 getRelationDisplayValue={getRelationDisplayValue}
+                fieldStates={fieldStates}
+                validationErrors={validationErrors}
               />
             </div>
           );
@@ -337,6 +366,8 @@ function RuntimeFillNode({
         onDetailValueChange={onDetailValueChange}
         onOpenRelationSelect={(relationNode, detailTableKey, rowIndex) => onOpenRelationSelect(relationNode, detailTableKey, rowIndex)}
         getRelationDisplayValue={(relationNode, detailTableKey, rowIndex) => getRelationDisplayValue(relationNode, detailTableKey, rowIndex)}
+        fieldStates={fieldStates}
+        validationErrors={validationErrors}
       />
     );
   }
@@ -349,6 +380,8 @@ function RuntimeFillNode({
     <MainFieldRenderer
       node={node}
       data={data.mainData}
+      fieldState={fieldStates[getFieldKey(node)]}
+      validationErrors={validationErrors[getFieldKey(node)]}
       readonly={readonly}
       onMainValueChange={onMainValueChange}
       onOpenRelationSelect={(relationNode) => onOpenRelationSelect(relationNode)}
@@ -368,6 +401,8 @@ export function RecordFormCanvas({
   onDetailValueChange,
   onOpenRelationSelect,
   getRelationDisplayValue,
+  fieldStates = {},
+  validationErrors = {},
 }: {
   nodesById: NodesById;
   pageChildren: string[];
@@ -379,6 +414,8 @@ export function RecordFormCanvas({
   onDetailValueChange: (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => void;
   onOpenRelationSelect: (node: Node, detailTableKey?: string, rowIndex?: number) => void;
   getRelationDisplayValue: (node: Node, detailTableKey?: string, rowIndex?: number) => string | undefined;
+  fieldStates?: Record<string, BaseFieldState>;
+  validationErrors?: Record<string, string[]>;
 }) {
   return (
     <ContainerLayout hasChildren={pageChildren.length > 0} emptyText="页面暂无字段" emptyFallback={<Empty description="页面暂无字段" />}>
@@ -401,6 +438,8 @@ export function RecordFormCanvas({
               onDetailValueChange={onDetailValueChange}
               onOpenRelationSelect={onOpenRelationSelect}
               getRelationDisplayValue={getRelationDisplayValue}
+              fieldStates={fieldStates}
+              validationErrors={validationErrors}
             />
           </div>
         );

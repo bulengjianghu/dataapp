@@ -2,6 +2,8 @@ import { configureStore, type Middleware } from "@reduxjs/toolkit";
 import { createHistorySnapshot, parseHistorySnapshot } from "./history";
 import { interactionRuleDraftReducer } from "./slices/interactionRuleDraftSlice";
 import { interactionRuleGraphReducer } from "./slices/interactionRuleGraphSlice";
+import { interactionRuntimeReducer } from "./slices/interactionRuntimeSlice";
+import { interactionEngineReducer } from "./slices/interactionEngineSlice";
 import {
   clearHistory,
   editorHistoryReducer,
@@ -30,6 +32,8 @@ type StoreState = {
   editorHistory: ReturnType<typeof editorHistoryReducer>;
   interactionRuleDraft: ReturnType<typeof interactionRuleDraftReducer>;
   interactionRuleGraph: ReturnType<typeof interactionRuleGraphReducer>;
+  interactionRuntime: ReturnType<typeof interactionRuntimeReducer>;
+  interactionEngine: ReturnType<typeof interactionEngineReducer>;
 };
 
 const historyTrackedActionTypes = new Set<string>([
@@ -89,6 +93,8 @@ export const store = configureStore({
     editorHistory: editorHistoryReducer,
     interactionRuleDraft: interactionRuleDraftReducer,
     interactionRuleGraph: interactionRuleGraphReducer,
+    interactionRuntime: interactionRuntimeReducer,
+    interactionEngine: interactionEngineReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(historyMiddleware),
 });

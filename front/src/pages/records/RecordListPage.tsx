@@ -3,7 +3,17 @@ import { Button, Card, Drawer, Empty, Flex, Input, Modal, Popconfirm, Space, Spi
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { clearRuntimeTraces, enqueueRuntimeEvent, resetInteractionEngineState } from "../../store/slices/interactionEngineSlice";
+import {
+  appendDetailRow,
+  removeDetailRow,
+  resetInteractionRuntimeState,
+  setDetailFieldValue,
+  setMainFieldValue,
+} from "../../store/slices/interactionRuntimeSlice";
 import type { Node } from "../../types/schema/node";
+import { InteractionRuntimeProvider } from "../fill/components/InteractionRuntimeProvider";
 import { RecordFormCanvas } from "../fill/components/RecordFormCanvas";
 import {
   createRecord,
@@ -21,6 +31,13 @@ import {
   type RelationRecord,
   type RuntimeForm,
 } from "../fill/services/recordRuntime";
+import {
+  createFormInitRuntimeEvent,
+  createMainFieldChangeRuntimeEvent,
+  initializeInteractionRuntimeFromRecord,
+  loadPublishedInteractionRuntimeRules,
+  type InteractionRuntimeRule,
+} from "../fill/services/interactionRuntime";
 
 type DrawerMode = "create" | "edit" | "view";
 type RelationDialogContext = {
@@ -65,6 +82,7 @@ function readSelectedDisplayField(node: Node) {
 }
 
 export function RecordListPage() {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [messageApi, contextHolder] = message.useMessage();
@@ -74,10 +92,10 @@ export function RecordListPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [drawerRecordId, setDrawerRecordId] = useState<number | null>(null);
-  const [drawerData, setDrawerData] = useState<RecordRuntimeData>(createEmptyRuntimeData());
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [runtimeRules, setRuntimeRules] = useState<InteractionRuntimeRule[]>([]);
   const [relationDialogOpen, setRelationDialogOpen] = useState(false);
   const [relationDialogContext, setRelationDialogContext] = useState<RelationDialogContext | null>(null);
   const [relationKeyword, setRelationKeyword] = useState("");
@@ -90,6 +108,9 @@ export function RecordListPage() {
 
   const formId = searchParams.get("formId");
   const formCode = searchParams.get("formCode");
+  const runtimeData = useAppSelector((state) => state.interactionRuntime.data);
+  const runtimeFieldStates = useAppSelector((state) => state.interactionRuntime.componentState.fields);
+  const validationErrors = useAppSelector((state) => state.interactionRuntime.validationErrors);
 
   const pageChildren = useMemo(() => runtimeForm?.nodesById.page_root?.childrenIds ?? [], [runtimeForm]);
   const readonly = drawerMode === "view";
@@ -145,6 +166,8 @@ export function RecordListPage() {
       ]);
       setRuntimeForm(runtime);
       setRecords(recordItems);
+      const publishedRules = await loadPublishedInteractionRuntimeRules(runtime.formId, runtime.versionId);
+      setRuntimeRules(publishedRules);
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "加载记录列表失败");
     } finally {
@@ -165,8 +188,13 @@ export function RecordListPage() {
   const openCreateDrawer = () => {
     setDrawerMode("create");
     setDrawerRecordId(null);
-    setDrawerData(createEmptyRuntimeData());
     setRelationDisplayValues({});
+    if (runtimeForm) {
+      initializeInteractionRuntimeFromRecord(dispatch, runtimeForm.nodesById, createEmptyRuntimeData());
+      dispatch(resetInteractionEngineState());
+      dispatch(clearRuntimeTraces());
+      dispatch(enqueueRuntimeEvent(createFormInitRuntimeEvent()));
+    }
     setDrawerOpen(true);
   };
 
@@ -177,10 +205,15 @@ export function RecordListPage() {
     setDrawerOpen(true);
     try {
       const detail = await loadRecordDetail(recordId);
-      setDrawerData({
-        mainData: detail.mainData ?? {},
-        detailTables: detail.detailTables ?? {},
-      });
+      if (runtimeForm) {
+        initializeInteractionRuntimeFromRecord(dispatch, runtimeForm.nodesById, {
+          mainData: detail.mainData ?? {},
+          detailTables: detail.detailTables ?? {},
+        });
+        dispatch(resetInteractionEngineState());
+        dispatch(clearRuntimeTraces());
+        dispatch(enqueueRuntimeEvent(createFormInitRuntimeEvent()));
+      }
       setRelationDisplayValues({});
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "加载记录详情失败");
@@ -196,83 +229,43 @@ export function RecordListPage() {
     }
     setDrawerOpen(false);
     setDrawerRecordId(null);
-    setDrawerData(createEmptyRuntimeData());
     setDrawerMode("create");
     setRelationDialogOpen(false);
     setRelationDialogContext(null);
     setRelationEmptyHint("暂无可选关联记录");
     setRelationDisplayValues({});
+    dispatch(resetInteractionRuntimeState());
+    dispatch(resetInteractionEngineState());
   };
 
   const handleMainValueChange = (fieldKey: string, value: unknown) => {
     if (readonly) {
       return;
     }
-    setDrawerData((current) => {
-      const nextMainData = { ...current.mainData };
-      if (value === undefined || value === null || value === "") {
-        delete nextMainData[fieldKey];
-      } else {
-        nextMainData[fieldKey] = value;
-      }
-      return {
-        ...current,
-        mainData: nextMainData,
-      };
-    });
+    dispatch(setMainFieldValue({ fieldKey, value }));
+    dispatch(enqueueRuntimeEvent(createMainFieldChangeRuntimeEvent(fieldKey, value, "user")));
   };
 
   const handleAddDetailRow = (detailTableKey: string, columnNodes: Node[], defaultRowCount: number) => {
     if (readonly) {
       return;
     }
-    setDrawerData((current) => {
-      const existingRows = current.detailTables[detailTableKey] ?? [];
-      const rowsToAppend = Array.from({ length: Math.max(defaultRowCount, 1) }, () => buildDefaultDetailRow(columnNodes));
-      return {
-        ...current,
-        detailTables: {
-          ...current.detailTables,
-          [detailTableKey]: [...existingRows, ...rowsToAppend],
-        },
-      };
-    });
+    const rowsToAppend = Array.from({ length: Math.max(defaultRowCount, 1) }, () => buildDefaultDetailRow(columnNodes));
+    dispatch(appendDetailRow({ detailTableKey, rows: rowsToAppend }));
   };
 
   const handleRemoveDetailRow = (detailTableKey: string, rowIndex: number) => {
     if (readonly) {
       return;
     }
-    setDrawerData((current) => ({
-      ...current,
-      detailTables: {
-        ...current.detailTables,
-        [detailTableKey]: (current.detailTables[detailTableKey] ?? []).filter((_, index) => index !== rowIndex),
-      },
-    }));
+    dispatch(removeDetailRow({ detailTableKey, rowIndex }));
   };
 
   const handleDetailValueChange = (detailTableKey: string, rowIndex: number, fieldKey: string, value: unknown) => {
     if (readonly) {
       return;
     }
-    setDrawerData((current) => {
-      const rows = [...(current.detailTables[detailTableKey] ?? [])];
-      const row = { ...(rows[rowIndex] ?? {}) };
-      if (value === undefined || value === null || value === "") {
-        delete row[fieldKey];
-      } else {
-        row[fieldKey] = value;
-      }
-      rows[rowIndex] = row;
-      return {
-        ...current,
-        detailTables: {
-          ...current.detailTables,
-          [detailTableKey]: rows,
-        },
-      };
-    });
+    dispatch(setDetailFieldValue({ detailTableKey, rowIndex, fieldKey, value }));
   };
 
   const ensureRecord = async () => {
@@ -282,7 +275,7 @@ export function RecordListPage() {
     if (drawerRecordId) {
       return drawerRecordId;
     }
-    const createdRecordId = await createRecord(runtimeForm.formId, runtimeForm.versionId, drawerData);
+    const createdRecordId = await createRecord(runtimeForm.formId, runtimeForm.versionId, runtimeData);
     setDrawerRecordId(createdRecordId);
     await loadPage();
     return createdRecordId;
@@ -292,7 +285,7 @@ export function RecordListPage() {
     setSaving(true);
     try {
       const recordId = await ensureRecord();
-      await saveRecordDraft(recordId, drawerData);
+      await saveRecordDraft(recordId, runtimeData);
       messageApi.success("草稿已保存");
       await loadPage();
       setDrawerMode("edit");
@@ -307,7 +300,7 @@ export function RecordListPage() {
     setSubmitting(true);
     try {
       const recordId = await ensureRecord();
-      await submitRecord(recordId, drawerData);
+      await submitRecord(recordId, runtimeData);
       messageApi.success("提交成功");
       await loadPage();
       setDrawerMode("view");
@@ -400,43 +393,32 @@ export function RecordListPage() {
       : [];
 
     if (relationDialogContext.detailTableKey && typeof relationDialogContext.rowIndex === "number") {
-      setDrawerData((current) => {
-        const rows = [...(current.detailTables[relationDialogContext.detailTableKey!] ?? [])];
-        const row = { ...(rows[relationDialogContext.rowIndex!] ?? {}) };
-        row[fieldKey] = selectedRecord.id;
-        mappings.forEach((mapping) => {
-          const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
-          const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
-          if (targetFieldKey && currentFieldKey) {
-            row[currentFieldKey] = selectedRecord.mainData[targetFieldKey];
-          }
-        });
-        rows[relationDialogContext.rowIndex!] = row;
-        return {
-          ...current,
-          detailTables: {
-            ...current.detailTables,
-            [relationDialogContext.detailTableKey!]: rows,
-          },
-        };
+      dispatch(setDetailFieldValue({
+        detailTableKey: relationDialogContext.detailTableKey!,
+        rowIndex: relationDialogContext.rowIndex!,
+        fieldKey,
+        value: selectedRecord.id,
+      }));
+      mappings.forEach((mapping) => {
+        const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
+        const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
+        if (targetFieldKey && currentFieldKey) {
+          dispatch(setDetailFieldValue({
+            detailTableKey: relationDialogContext.detailTableKey!,
+            rowIndex: relationDialogContext.rowIndex!,
+            fieldKey: currentFieldKey,
+            value: selectedRecord.mainData[targetFieldKey],
+          }));
+        }
       });
     } else {
-      setDrawerData((current) => {
-        const nextMainData = {
-          ...current.mainData,
-          [fieldKey]: selectedRecord.id,
-        };
-        mappings.forEach((mapping) => {
-          const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
-          const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
-          if (targetFieldKey && currentFieldKey) {
-            nextMainData[currentFieldKey] = selectedRecord.mainData[targetFieldKey];
-          }
-        });
-        return {
-          ...current,
-          mainData: nextMainData,
-        };
+      dispatch(setMainFieldValue({ fieldKey, value: selectedRecord.id }));
+      mappings.forEach((mapping) => {
+        const targetFieldKey = typeof mapping.targetFieldKey === "string" ? mapping.targetFieldKey : "";
+        const currentFieldKey = typeof mapping.currentFieldKey === "string" ? mapping.currentFieldKey : "";
+        if (targetFieldKey && currentFieldKey) {
+          dispatch(setMainFieldValue({ fieldKey: currentFieldKey, value: selectedRecord.mainData[targetFieldKey] }));
+        }
       });
     }
 
@@ -586,20 +568,24 @@ export function RecordListPage() {
           </div>
         ) : (
           <Card bordered={false} className="record-drawer__card">
-            <Flex vertical gap={16}>
-              <RecordFormCanvas
-                nodesById={runtimeForm.nodesById}
-                pageChildren={pageChildren}
-                data={drawerData}
-                readonly={readonly}
-                onMainValueChange={handleMainValueChange}
-                onAddDetailRow={handleAddDetailRow}
-                onRemoveDetailRow={handleRemoveDetailRow}
-                onDetailValueChange={handleDetailValueChange}
-                onOpenRelationSelect={openRelationDialog}
-                getRelationDisplayValue={getRelationDisplayValue}
-              />
-            </Flex>
+            <InteractionRuntimeProvider rules={runtimeRules}>
+              <Flex vertical gap={16}>
+                <RecordFormCanvas
+                  nodesById={runtimeForm.nodesById}
+                  pageChildren={pageChildren}
+                  data={runtimeData}
+                  readonly={readonly}
+                  onMainValueChange={handleMainValueChange}
+                  onAddDetailRow={handleAddDetailRow}
+                  onRemoveDetailRow={handleRemoveDetailRow}
+                  onDetailValueChange={handleDetailValueChange}
+                  onOpenRelationSelect={openRelationDialog}
+                  getRelationDisplayValue={getRelationDisplayValue}
+                  fieldStates={runtimeFieldStates}
+                  validationErrors={validationErrors}
+                />
+              </Flex>
+            </InteractionRuntimeProvider>
           </Card>
         )}
       </Drawer>

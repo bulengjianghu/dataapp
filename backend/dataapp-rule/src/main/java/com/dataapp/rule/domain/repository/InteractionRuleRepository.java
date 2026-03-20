@@ -15,6 +15,8 @@ public interface InteractionRuleRepository {
 
     InteractionRuleVersion findCurrentPublishedVersion(Long formId, Long ruleId);
 
+    List<InteractionRuleVersion> listPublishedVersionsByFormId(Long formId);
+
     List<InteractionRuleDraftSummary> listDraftSummariesByFormId(Long formId);
 
     Integer nextVersionNo(Long ruleId);

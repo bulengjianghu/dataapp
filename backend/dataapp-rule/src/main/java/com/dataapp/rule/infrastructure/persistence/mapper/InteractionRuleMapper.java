@@ -192,4 +192,23 @@ public interface InteractionRuleMapper {
           and rd.deleted = false
         """)
     RuleVersionPO selectCurrentPublishedVersion(@Param("formId") Long formId, @Param("ruleId") Long ruleId);
+
+    @Select("""
+        select rv.id, rv.rule_id, rv.version_no, rv.rule_type, rv.form_id, rv.form_version_id, rv.event_type, rv.priority,
+               rv.published_snapshot_json::text as published_snapshot_json,
+               rv.compiled_json::text as compiled_json,
+               rv.normalized_json::text as normalized_json,
+               rv.dependency_json::text as dependency_json,
+               rv.failure_policy::text as failure_policy,
+               rv.compiler_version, rv.published_by, rv.published_at, rv.status
+        from rule_version rv
+        inner join rule_definition rd on rd.current_version_id = rv.id
+        where rd.form_id = #{formId}
+          and rd.rule_type = 'INTERACTION'
+          and rd.deleted = false
+          and rd.status = 'ACTIVE'
+          and rv.status = 'ACTIVE'
+        order by rv.priority desc, rv.id asc
+        """)
+    List<RuleVersionPO> selectPublishedVersionsByFormId(@Param("formId") Long formId);
 }

@@ -128,4 +128,17 @@ public final class InteractionRuleVersion {
     public String getStatus() {
         return status;
     }
+
+    public boolean matchesRuntimeScope(Long runtimeFormId, Long runtimeFormVersionId) {
+        if (!"ACTIVE".equals(status)) {
+            return false;
+        }
+        if (formId == null || !formId.equals(runtimeFormId)) {
+            return false;
+        }
+        if (formVersionId == null) {
+            return true;
+        }
+        return formVersionId.equals(runtimeFormVersionId);
+    }
 }

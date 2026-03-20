@@ -8,6 +8,7 @@ import com.dataapp.rule.domain.repository.InteractionRuleRepository;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftListItemResponse;
 import com.dataapp.rule.interfaces.dto.InteractionRuleDraftResponse;
 import com.dataapp.rule.interfaces.dto.InteractionRulePublishedResponse;
+import com.dataapp.rule.interfaces.dto.InteractionRuntimeRuleResponse;
 import com.dataapp.shared.exception.BizException;
 import com.dataapp.shared.exception.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -87,6 +88,23 @@ public class InteractionRuleQueryAppService {
         );
     }
 
+    public List<InteractionRuntimeRuleResponse> listRuntimeRules(Long formId, Long formVersionId) {
+        return interactionRuleRepository.listPublishedVersionsByFormId(formId).stream()
+            .filter(version -> version.matchesRuntimeScope(formId, formVersionId))
+            .sorted((left, right) -> {
+                int priorityCompare = Integer.compare(
+                    right.getPriority() == null ? 0 : right.getPriority(),
+                    left.getPriority() == null ? 0 : left.getPriority()
+                );
+                if (priorityCompare != 0) {
+                    return priorityCompare;
+                }
+                return Long.compare(left.getId(), right.getId());
+            })
+            .map(this::toRuntimeRuleResponse)
+            .toList();
+    }
+
     private InteractionRuleDraftListItemResponse toSummaryResponse(InteractionRuleDraftSummary item) {
         Map<String, Object> meta = readJson(item.draftJson());
         return new InteractionRuleDraftListItemResponse(
@@ -98,6 +116,24 @@ public class InteractionRuleQueryAppService {
             readBoolean(meta, "enabled", true),
             item.status(),
             item.updatedAt() == null ? "" : item.updatedAt().toString()
+        );
+    }
+
+    private InteractionRuntimeRuleResponse toRuntimeRuleResponse(InteractionRuleVersion version) {
+        Map<String, Object> normalized = version.getNormalizedJson();
+        return new InteractionRuntimeRuleResponse(
+            version.getRuleId(),
+            version.getId(),
+            version.getVersionNo(),
+            readString(version.getPublishedSnapshotJson(), "ruleCode", ""),
+            readString(version.getPublishedSnapshotJson(), "ruleName", ""),
+            version.getEventType(),
+            version.getPriority(),
+            readString(normalized, "triggerScope", ""),
+            readString(normalized, "triggerTarget", ""),
+            extractFailurePolicy(normalized, version.getFailurePolicy()),
+            version.getCompilerVersion(),
+            normalized
         );
     }
 
@@ -125,5 +161,10 @@ public class InteractionRuleQueryAppService {
     private boolean readBoolean(Map<String, Object> payload, String key, boolean defaultValue) {
         Object value = payload.get(key);
         return value instanceof Boolean bool ? bool : defaultValue;
+    }
+
+    private String extractFailurePolicy(Map<String, Object> payload, String fallback) {
+        Object value = payload.get("failurePolicy");
+        return value instanceof String text && !text.isBlank() ? text : fallback;
     }
 }

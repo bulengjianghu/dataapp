@@ -43,10 +43,98 @@ export type CompiledInteractionRule = {
   references: RuleReferenceSummary;
 };
 
+export function serializeCompiledInteractionRule(
+  compiledRule: CompiledInteractionRule | null
+): Record<string, unknown> {
+  if (!compiledRule) {
+    return {};
+  }
+
+  return {
+    eventType: compiledRule.eventType,
+    triggerScope: compiledRule.triggerScope,
+    triggerTarget: compiledRule.triggerTarget,
+    priority: compiledRule.priority,
+    steps: compiledRule.steps,
+    failurePolicy: compiledRule.failurePolicy,
+    references: compiledRule.references,
+  };
+}
+
+export function deserializeCompiledInteractionRule(
+  ruleId: string,
+  compiledJson: Record<string, unknown> | undefined
+): CompiledInteractionRule | null {
+  if (!compiledJson || Object.keys(compiledJson).length === 0) {
+    return null;
+  }
+
+  const eventType = compiledJson.eventType;
+  const triggerScope = compiledJson.triggerScope;
+  const priority = compiledJson.priority;
+  const steps = compiledJson.steps;
+  const failurePolicy = compiledJson.failurePolicy;
+  const references = compiledJson.references;
+
+  if (
+    eventType !== "FIELD_CHANGE_MAIN" &&
+    eventType !== "FIELD_CHANGE_DETAIL" &&
+    eventType !== "DETAIL_ROW_ADDED" &&
+    eventType !== "DETAIL_ROW_REMOVED" &&
+    eventType !== "RELATION_OPEN" &&
+    eventType !== "RELATION_SELECTED" &&
+    eventType !== "FORM_INIT" &&
+    eventType !== "FORM_SUBMIT_BEFORE"
+  ) {
+    return null;
+  }
+
+  if (
+    triggerScope !== "MAIN_FIELD" &&
+    triggerScope !== "DETAIL_ROW" &&
+    triggerScope !== "RECORD" &&
+    triggerScope !== "GLOBAL"
+  ) {
+    return null;
+  }
+
+  if (typeof priority !== "number" || !Array.isArray(steps)) {
+    return null;
+  }
+
+  if (
+    failurePolicy !== "interrupt" &&
+    failurePolicy !== "continue" &&
+    failurePolicy !== "fallback"
+  ) {
+    return null;
+  }
+
+  const referencePayload =
+    references && typeof references === "object"
+      ? (references as Partial<RuleReferenceSummary>)
+      : undefined;
+
+  return {
+    ruleId,
+    eventType,
+    triggerScope,
+    triggerTarget: typeof compiledJson.triggerTarget === "string" ? compiledJson.triggerTarget : undefined,
+    priority,
+    steps: steps as Array<Record<string, unknown>>,
+    failurePolicy,
+    references: {
+      fields: Array.isArray(referencePayload?.fields) ? referencePayload.fields : [],
+      detailTables: Array.isArray(referencePayload?.detailTables) ? referencePayload.detailTables : [],
+      forms: Array.isArray(referencePayload?.forms) ? referencePayload.forms : [],
+      events: Array.isArray(referencePayload?.events) ? referencePayload.events : [],
+    },
+  };
+}
+
 export type InteractionRuleDraftState = {
   meta: InteractionRuleMeta;
   graphJson: Record<string, unknown>;
-  compiledJson: Record<string, unknown>;
   compiledRule: CompiledInteractionRule | null;
   saveStatus: "idle" | "saving" | "success" | "error";
   publishStatus: "idle" | "publishing" | "success" | "error";
@@ -73,7 +161,6 @@ export const DEFAULT_INTERACTION_RULE_META: InteractionRuleMeta = {
 const initialState: InteractionRuleDraftState = {
   meta: DEFAULT_INTERACTION_RULE_META,
   graphJson: {},
-  compiledJson: {},
   compiledRule: null,
   saveStatus: "idle",
   publishStatus: "idle",
@@ -92,13 +179,11 @@ const interactionRuleDraftSlice = createSlice({
       action: PayloadAction<{
         meta: InteractionRuleMeta;
         graphJson?: Record<string, unknown>;
-        compiledJson?: Record<string, unknown>;
         compiledRule?: CompiledInteractionRule | null;
       }>
     ) => {
       state.meta = action.payload.meta;
       state.graphJson = action.payload.graphJson ?? {};
-      state.compiledJson = action.payload.compiledJson ?? {};
       state.compiledRule = action.payload.compiledRule ?? null;
       state.saveStatus = "idle";
       state.publishStatus = "idle";
@@ -120,9 +205,6 @@ const interactionRuleDraftSlice = createSlice({
     },
     updateInteractionRuleGraphJson: (state, action: PayloadAction<Record<string, unknown>>) => {
       state.graphJson = action.payload;
-    },
-    updateInteractionRuleCompiledJson: (state, action: PayloadAction<Record<string, unknown>>) => {
-      state.compiledJson = action.payload;
     },
     setInteractionRuleCompiledRule: (state, action: PayloadAction<CompiledInteractionRule | null>) => {
       state.compiledRule = action.payload;
@@ -157,7 +239,6 @@ export const {
   initializeInteractionRuleDraftState,
   updateInteractionRuleMeta,
   updateInteractionRuleGraphJson,
-  updateInteractionRuleCompiledJson,
   setInteractionRuleCompiledRule,
   setInteractionRuleSaveStatus,
   setInteractionRulePublishStatus,

@@ -89,6 +89,8 @@ const interactionRuleGraphSlice = createSlice({
         formId: string | null;
         ruleId: string | null;
         graph?: Partial<InteractionRuleGraphState["graph"]>;
+        selectedNodeId?: string | null;
+        selectedEdgeId?: string | null;
       }>
     ) => {
       state.formId = action.payload.formId;
@@ -98,8 +100,18 @@ const interactionRuleGraphSlice = createSlice({
         edges: action.payload.graph?.edges ?? [],
         viewport: action.payload.graph?.viewport ?? { x: 0, y: 0, zoom: 1 },
       };
-      state.selectedNodeId = action.payload.graph?.nodes?.[0]?.id ?? null;
-      state.selectedEdgeId = null;
+      const nextSelectedNodeId =
+        action.payload.selectedNodeId &&
+        state.graph.nodes.some((item) => item.id === action.payload.selectedNodeId)
+          ? action.payload.selectedNodeId
+          : null;
+      const nextSelectedEdgeId =
+        action.payload.selectedEdgeId &&
+        state.graph.edges.some((item) => item.id === action.payload.selectedEdgeId)
+          ? action.payload.selectedEdgeId
+          : null;
+      state.selectedEdgeId = nextSelectedEdgeId;
+      state.selectedNodeId = nextSelectedEdgeId ? null : nextSelectedNodeId ?? state.graph.nodes[0]?.id ?? null;
       state.diagnostics = [];
       state.references = emptyReferences;
       state.dirty = false;
@@ -148,6 +160,7 @@ const interactionRuleGraphSlice = createSlice({
     },
     connectRuleNodes: (state, action: PayloadAction<RuleGraphEdge>) => {
       state.graph.edges.push(action.payload);
+      state.selectedNodeId = null;
       state.selectedEdgeId = action.payload.id;
       state.dirty = true;
     },

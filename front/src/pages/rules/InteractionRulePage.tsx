@@ -26,12 +26,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
+  deserializeCompiledInteractionRule,
   initializeInteractionRuleDraftState,
   resetInteractionRuleDraftState,
+  serializeCompiledInteractionRule,
   setInteractionRuleCompiledRule,
   setInteractionRulePublishStatus,
   setInteractionRuleSaveStatus,
-  updateInteractionRuleCompiledJson,
   updateInteractionRuleGraphJson,
   updateInteractionRuleMeta,
   type InteractionEventType,
@@ -124,7 +125,7 @@ function formatSavedTime(timestamp: string | null) {
 function createRuleDraftFingerprint(
   meta: InteractionRuleMeta,
   graphJson: Record<string, unknown>,
-  compiledJson: Record<string, unknown>
+  compiledRule: ReturnType<typeof deserializeCompiledInteractionRule> | null
 ) {
   return JSON.stringify({
     meta: {
@@ -137,7 +138,7 @@ function createRuleDraftFingerprint(
       compilerVersion: meta.compilerVersion,
     },
     graphJson,
-    compiledJson,
+    compiledJson: serializeCompiledInteractionRule(compiledRule),
   });
 }
 
@@ -371,8 +372,8 @@ export function InteractionRulePage() {
   const hasCanvasErrors = graphState.diagnostics.some((item) => item.level === "error");
   const ruleDisplayName = ruleDraft.meta.ruleName || "未命名规则";
   const currentFingerprint = useMemo(
-    () => createRuleDraftFingerprint(ruleDraft.meta, graphModel, ruleDraft.compiledJson),
-    [graphModel, ruleDraft.compiledJson, ruleDraft.meta]
+    () => createRuleDraftFingerprint(ruleDraft.meta, graphModel, ruleDraft.compiledRule),
+    [graphModel, ruleDraft.compiledRule, ruleDraft.meta]
   );
   const dirty = Boolean(ruleDraft.initialized && persistedFingerprint && currentFingerprint !== persistedFingerprint);
   const hasSavedDraft = Boolean(ruleDraft.meta.ruleId);
@@ -396,8 +397,9 @@ export function InteractionRulePage() {
     initialized: ruleDraft.initialized,
     meta: ruleDraft.meta,
     graphModel,
-    compiledJson: ruleDraft.compiledJson,
     compiledRule: ruleDraft.compiledRule,
+    selectedNodeId: graphState.selectedNodeId,
+    selectedEdgeId: graphState.selectedEdgeId,
   });
 
   useEffect(() => {
@@ -405,10 +407,18 @@ export function InteractionRulePage() {
       initialized: ruleDraft.initialized,
       meta: ruleDraft.meta,
       graphModel,
-      compiledJson: ruleDraft.compiledJson,
       compiledRule: ruleDraft.compiledRule,
+      selectedNodeId: graphState.selectedNodeId,
+      selectedEdgeId: graphState.selectedEdgeId,
     };
-  }, [graphModel, ruleDraft.compiledJson, ruleDraft.compiledRule, ruleDraft.initialized, ruleDraft.meta]);
+  }, [
+    graphModel,
+    graphState.selectedEdgeId,
+    graphState.selectedNodeId,
+    ruleDraft.compiledRule,
+    ruleDraft.initialized,
+    ruleDraft.meta,
+  ]);
 
   useEffect(() => {
     dispatch(resetInteractionRuleDraftState());
@@ -441,8 +451,14 @@ export function InteractionRulePage() {
           return;
         }
         dispatch(initializeInteractionRuleDraftState(draft));
-        dispatch(initializeRuleGraph({ formId, ruleId, graph: normalizeGraphPayload(draft.graphJson) }));
-        setPersistedFingerprint(createRuleDraftFingerprint(draft.meta, draft.graphJson, draft.compiledJson));
+        dispatch(
+          initializeRuleGraph({
+            formId,
+            ruleId,
+            graph: normalizeGraphPayload(draft.graphJson),
+          })
+        );
+        setPersistedFingerprint(createRuleDraftFingerprint(draft.meta, draft.graphJson, draft.compiledRule ?? null));
         dispatch(setInteractionRuleSaveStatus({ status: "success", lastSavedAt: new Date().toISOString() }));
         setPublishedVersion(published);
       })
@@ -478,7 +494,6 @@ export function InteractionRulePage() {
     dispatch(setRuleDiagnostics(compiled.diagnostics));
     dispatch(setRuleReferences(compiled.references));
     dispatch(updateInteractionRuleGraphJson(graphModel));
-    dispatch(updateInteractionRuleCompiledJson(compiled.compiledJson));
     dispatch(setInteractionRuleCompiledRule(compiled.compiledRule));
   }, [
     dispatch,
@@ -502,13 +517,20 @@ export function InteractionRulePage() {
     const saved = await saveInteractionRuleDraftToServer({
       meta: latestDraft.meta,
       graphJson: latestDraft.graphModel,
-      compiledJson: latestDraft.compiledJson,
       compiledRule: latestDraft.compiledRule,
     });
     dispatch(initializeInteractionRuleDraftState(saved));
-    dispatch(initializeRuleGraph({ formId: saved.meta.formId, ruleId: saved.meta.ruleId, graph: normalizeGraphPayload(saved.graphJson) }));
+    dispatch(
+      initializeRuleGraph({
+        formId: saved.meta.formId,
+        ruleId: saved.meta.ruleId,
+        graph: normalizeGraphPayload(saved.graphJson),
+        selectedNodeId: latestDraft.selectedNodeId,
+        selectedEdgeId: latestDraft.selectedEdgeId,
+      })
+    );
     const savedAt = new Date().toISOString();
-    setPersistedFingerprint(createRuleDraftFingerprint(saved.meta, saved.graphJson, saved.compiledJson));
+    setPersistedFingerprint(createRuleDraftFingerprint(saved.meta, saved.graphJson, saved.compiledRule ?? null));
     dispatch(setInteractionRuleSaveStatus({ status: "success", lastSavedAt: savedAt }));
     setAutoSavePending(false);
     return saved;
@@ -547,20 +569,21 @@ export function InteractionRulePage() {
         {
           meta: latestDraftRef.current.meta,
           graphJson: latestDraftRef.current.graphModel,
-          compiledJson: latestDraftRef.current.compiledJson,
           compiledRule: latestDraftRef.current.compiledRule,
         },
         { keepalive: true }
       )
         .then((saved) => {
           const savedAt = new Date().toISOString();
-          setPersistedFingerprint(createRuleDraftFingerprint(saved.meta, saved.graphJson, saved.compiledJson));
+          setPersistedFingerprint(createRuleDraftFingerprint(saved.meta, saved.graphJson, saved.compiledRule ?? null));
           dispatch(initializeInteractionRuleDraftState(saved));
           dispatch(
             initializeRuleGraph({
               formId: saved.meta.formId,
               ruleId: saved.meta.ruleId,
               graph: normalizeGraphPayload(saved.graphJson),
+              selectedNodeId: latestDraftRef.current.selectedNodeId,
+              selectedEdgeId: latestDraftRef.current.selectedEdgeId,
             })
           );
           dispatch(setInteractionRuleSaveStatus({ status: "success", lastSavedAt: savedAt }));
@@ -756,7 +779,7 @@ export function InteractionRulePage() {
                         <div className="interaction-rule-page__tab-pane">
                           <RuleCompilePanel
                             diagnostics={graphState.diagnostics}
-                            compiledJson={ruleDraft.compiledJson}
+                            compiledJson={serializeCompiledInteractionRule(ruleDraft.compiledRule)}
                             validationResult={validationResult}
                             publishedVersion={publishedVersion}
                           />

@@ -4,6 +4,8 @@ import {
   type InteractionEventType,
   type InteractionRuleMeta,
   type RuleReferenceSummary,
+  deserializeCompiledInteractionRule,
+  serializeCompiledInteractionRule,
 } from "../../../store/slices/interactionRuleDraftSlice";
 
 export type InteractionRuleSummary = {
@@ -85,7 +87,6 @@ type InteractionRulePublishedResponse = {
 export type InteractionRuleDraft = {
   meta: InteractionRuleMeta;
   graphJson: Record<string, unknown>;
-  compiledJson: Record<string, unknown>;
   compiledRule?: CompiledInteractionRule | null;
 };
 
@@ -130,7 +131,7 @@ function deserializeDraft(payload: InteractionRuleDraftResponse): InteractionRul
       draftVersion: payload.draftVersion,
     },
     graphJson: payload.graphJson ?? {},
-    compiledJson: payload.compiledJson ?? {},
+    compiledRule: deserializeCompiledInteractionRule(String(payload.ruleId), payload.compiledJson ?? {}),
   };
 }
 
@@ -186,7 +187,7 @@ export async function saveInteractionRuleDraftToServer(
         enabled: draft.meta.enabled,
         compilerVersion: draft.meta.compilerVersion,
         graphJson: draft.graphJson,
-        compiledJson: draft.compiledJson,
+        compiledJson: serializeCompiledInteractionRule(draft.compiledRule ?? null),
       }),
     }
   );

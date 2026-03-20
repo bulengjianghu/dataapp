@@ -6,8 +6,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   BaseEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
   getSmoothStepPath,
   type Connection,
   type Edge,
@@ -187,7 +185,6 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
   };
 
   const onNodesChange = (changes: NodeChange[]) => {
-    const nextNodes = applyNodeChanges(changes, nodes);
     changes.forEach((change) => {
       if (change.type === "remove") {
         dispatch(removeRuleNode(change.id));
@@ -195,26 +192,15 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
       if (change.type === "position" && change.position) {
         dispatch(moveRuleNode({ nodeId: change.id, position: change.position }));
       }
-      if (change.type === "select") {
-        dispatch(selectRuleNode(change.selected ? change.id : null));
-      }
     });
-    const fallbackSelected = nextNodes.find((item) => item.selected)?.id ?? null;
-    if (!changes.some((item) => item.type === "select") && fallbackSelected !== graphState.selectedNodeId) {
-      dispatch(selectRuleNode(fallbackSelected));
-    }
   };
 
   const onEdgesChange = (changes: EdgeChange[]) => {
-    const nextEdges = applyEdgeChanges(changes, edges);
     changes.forEach((change) => {
       if (change.type === "remove") {
         dispatch(removeRuleEdge(change.id));
       }
     });
-    if (nextEdges.length === 0 && graphState.graph.edges.length > 0 && !changes.some((item) => item.type === "remove")) {
-      graphState.graph.edges.forEach((edge) => dispatch(removeRuleEdge(edge.id)));
-    }
   };
 
   const onConnect = (connection: Connection) => {
@@ -295,12 +281,19 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         isValidConnection={canConnect}
-        onNodeClick={(_, node) => dispatch(selectRuleNode(node.id))}
-        onEdgeClick={(_, edge) => dispatch(selectRuleEdge(edge.id))}
+        onNodeClick={(_, node) => {
+          dispatch(selectRuleEdge(null));
+          dispatch(selectRuleNode(node.id));
+        }}
+        onEdgeClick={(_, edge) => {
+          dispatch(selectRuleNode(null));
+          dispatch(selectRuleEdge(edge.id));
+        }}
         onPaneClick={() => {
           dispatch(selectRuleNode(null));
           dispatch(selectRuleEdge(null));
         }}
+        multiSelectionKeyCode={null}
         onDragOver={onDragOver}
         onDrop={onDrop}
         deleteKeyCode={["Backspace", "Delete"]}

@@ -107,7 +107,6 @@ export function precompileInteractionRule(params: {
   diagnostics: RuleGraphDiagnostic[];
   references: RuleReferenceSummary;
   compiledRule: CompiledInteractionRule | null;
-  compiledJson: Record<string, unknown>;
 } {
   const triggerNodes = params.graphState.graph.nodes.filter((node) => node.type === "trigger");
   const diagnostics: RuleGraphDiagnostic[] = [];
@@ -194,16 +193,5 @@ export function precompileInteractionRule(params: {
     diagnostics,
     references,
     compiledRule,
-    compiledJson: compiledRule
-      ? {
-          eventType: compiledRule.eventType,
-          triggerScope: compiledRule.triggerScope,
-          triggerTarget: compiledRule.triggerTarget,
-          priority: compiledRule.priority,
-          steps: compiledRule.steps,
-          failurePolicy: compiledRule.failurePolicy,
-          references: compiledRule.references,
-        }
-      : {},
   };
 }

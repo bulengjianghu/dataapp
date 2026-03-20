@@ -2,7 +2,10 @@ import { Alert, Card, Empty, Space, Tag, Typography } from "antd";
 import type {
   InteractionRuleGraphState,
 } from "../../../store/slices/interactionRuleGraphSlice";
-import type { InteractionRuleDraftState } from "../../../store/slices/interactionRuleDraftSlice";
+import {
+  serializeCompiledInteractionRule,
+  type InteractionRuleDraftState,
+} from "../../../store/slices/interactionRuleDraftSlice";
 import type { InteractionRulePublishedVersion, InteractionRuleValidationResult } from "../services/interactionRules";
 
 type RuleDiagnosticsPanelProps = {
@@ -20,6 +23,7 @@ export function RuleDiagnosticsPanel({
 }: RuleDiagnosticsPanelProps) {
   const errorCount = graphState.diagnostics.filter((item) => item.level === "error").length;
   const warningCount = graphState.diagnostics.filter((item) => item.level === "warning").length;
+  const compiledJson = serializeCompiledInteractionRule(ruleDraft.compiledRule);
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -55,8 +59,8 @@ export function RuleDiagnosticsPanel({
       </Card>
 
       <Card title="当前编译结果" size="small">
-        {ruleDraft.compiledJson && Object.keys(ruleDraft.compiledJson).length > 0 ? (
-          <pre className="rule-diagnostics__json">{JSON.stringify(ruleDraft.compiledJson, null, 2)}</pre>
+        {Object.keys(compiledJson).length > 0 ? (
+          <pre className="rule-diagnostics__json">{JSON.stringify(compiledJson, null, 2)}</pre>
         ) : (
           <Empty description="当前还没有可发布的编译结果" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         )}

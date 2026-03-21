@@ -38,7 +38,20 @@ export function createDefaultRuleNode(type: RuleNodeType, position: { x: number;
     baseData.eventType = "FIELD_CHANGE_MAIN";
     baseData.triggerTarget = "";
   }
-  if (type === "query" || type === "transform" || type === "context") {
+  if (type === "query") {
+    baseData.sourceType = "relation_records";
+    baseData.sourceFormId = "";
+    baseData.saveAs = "queryResult";
+    baseData.displayFields = [];
+    baseData.filters = [];
+  }
+  if (type === "transform") {
+    baseData.transformType = "expression";
+    baseData.input = "";
+    baseData.output = "transformedValue";
+    baseData.saveAs = "transformedValue";
+  }
+  if (type === "context") {
     baseData.fieldKey = "";
   }
   if (type === "command") {

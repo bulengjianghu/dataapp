@@ -454,6 +454,10 @@ async function executeQueryStep(
   dispatch: AppDispatch
 ) {
   const data = typeof step.data === "object" && step.data ? (step.data as Record<string, unknown>) : {};
+  const sourceType =
+    typeof data.sourceType === "string" && data.sourceType.trim()
+      ? data.sourceType
+      : "relation_records";
   const saveAs = typeof data.saveAs === "string" ? data.saveAs : "";
   if (!saveAs) {
     return {
@@ -462,7 +466,7 @@ async function executeQueryStep(
     };
   }
 
-  if (data.sourceType === "relation_records") {
+  if (sourceType === "relation_records") {
     const sourceFormId = Number(resolveRuntimeValue(data.sourceFormId ?? data.formId, context) ?? data.sourceFormId);
     if (!sourceFormId) {
       return {
@@ -509,7 +513,7 @@ async function executeQueryStep(
     };
   }
 
-  if (data.sourceType === "detail_rows") {
+  if (sourceType === "detail_rows") {
     const detailTableKey =
       typeof data.detailTableKey === "string"
         ? data.detailTableKey
@@ -603,8 +607,15 @@ function executeTransformStep(step: Record<string, unknown>, context: RuleExecut
         if (!sourceField || !targetField) {
           return result;
         }
-        const rawRow = typeof row === "object" && row !== null && "values" in row ? (row as DetailRowRuntime).values : (row as Record<string, unknown>);
-        result[targetField] = rawRow?.[sourceField];
+        const rawRow =
+          typeof row === "object" && row !== null && "values" in row
+            ? (row as DetailRowRuntime).values
+            : (row as Record<string, unknown>);
+        const relationMainData =
+          typeof row === "object" && row !== null && "mainData" in row
+            ? (row as RelationRecord).mainData
+            : undefined;
+        result[targetField] = relationMainData?.[sourceField] ?? rawRow?.[sourceField];
         return result;
       }, {})
     );
@@ -987,16 +998,33 @@ function dispatchRuntimeCommand(
       }
       break;
     case "appendRow":
-      if (target.detailTableKey && command.value && typeof command.value === "object" && !Array.isArray(command.value)) {
-        const appendedRow = createDetailRowRuntime(command.value as Record<string, unknown>, { __origin: "relation_fill" });
+      if (target.detailTableKey && command.value && typeof command.value === "object") {
+        const sourceRows = Array.isArray(command.value)
+          ? command.value.filter(
+              (item): item is Record<string, unknown> =>
+                typeof item === "object" && item !== null && !Array.isArray(item)
+            )
+          : [command.value as Record<string, unknown>];
+        if (sourceRows.length === 0) {
+          break;
+        }
+        const appendedRows = sourceRows.map((item) =>
+          createDetailRowRuntime(item, { __origin: "relation_fill" })
+        );
         dispatch(
           appendDetailRows({
             detailTableKey: target.detailTableKey,
-            rows: [appendedRow],
+            rows: appendedRows,
           })
         );
         if (command.emitEventAfterCommand) {
-          dispatch(enqueueRuntimeEvent(createDetailRowAddedRuntimeEvent(target.detailTableKey, appendedRow.__rowId, "rule")));
+          appendedRows.forEach((row) => {
+            dispatch(
+              enqueueRuntimeEvent(
+                createDetailRowAddedRuntimeEvent(target.detailTableKey!, row.__rowId, "rule")
+              )
+            );
+          });
         }
       }
       break;

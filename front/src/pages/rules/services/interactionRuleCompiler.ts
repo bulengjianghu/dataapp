@@ -47,6 +47,34 @@ function collectNodeFieldReference(node: RuleGraphNode, key: string) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function collectFieldReferencesFromNode(node: RuleGraphNode) {
+  const references = new Set<string>();
+  const push = (value: string | null) => {
+    if (value) {
+      references.add(value);
+    }
+  };
+
+  if (node.type === "trigger") {
+    push(collectNodeFieldReference(node, "triggerTarget"));
+    push(collectNodeFieldReference(node, "targetField"));
+  }
+
+  if (node.type === "command") {
+    const targetType = typeof node.data.targetType === "string" ? node.data.targetType.trim() : "";
+    if (targetType !== "detail_table" && targetType !== "detail_row") {
+      push(collectNodeFieldReference(node, "fieldKey"));
+      push(collectNodeFieldReference(node, "targetField"));
+    }
+  }
+
+  if (node.type === "context") {
+    push(collectNodeFieldReference(node, "fieldKey"));
+  }
+
+  return Array.from(references);
+}
+
 function readTriggerTarget(node: RuleGraphNode | undefined) {
   if (!node) {
     return undefined;
@@ -154,6 +182,14 @@ export function precompileInteractionRule(params: {
   const diagnostics: RuleGraphDiagnostic[] = [];
   const availableFieldKeys = new Set(params.availableFieldKeys ?? []);
   const availableFieldMap = new Map((params.availableFields ?? []).map((item) => [item.value, item]));
+  const availableDetailTableKeys = new Set(
+    (params.availableFields ?? [])
+      .map((item) => {
+        const matched = /^detail\.([^.]+)\./.exec(item.value);
+        return matched?.[1] ?? null;
+      })
+      .filter((value): value is string => Boolean(value))
+  );
 
   if (triggerNodes.length === 0) {
     diagnostics.push({
@@ -270,19 +306,30 @@ export function precompileInteractionRule(params: {
 
     if (node.type === "command") {
       const fieldKey = typeof node.data.fieldKey === "string" ? node.data.fieldKey.trim() : "";
+      const detailTableKey =
+        typeof node.data.detailTableKey === "string" ? node.data.detailTableKey.trim() : "";
+      const targetType = typeof node.data.targetType === "string" ? node.data.targetType.trim() : "";
       const command =
         typeof node.data.commandType === "string"
           ? node.data.commandType.trim()
           : typeof node.data.command === "string"
             ? node.data.command.trim()
             : "";
-      if (!fieldKey) {
+      const requiresDetailTableTarget =
+        command === "appendRow" || command === "replaceTable" || command === "updateRow";
+      const supportsDetailTableTarget =
+        requiresDetailTableTarget || command === "setVisible" || command === "setReadonly";
+      const usesDetailTableTarget =
+        targetType === "detail_table" || targetType === "detail_row";
+      const hasValidFieldTarget = Boolean(fieldKey);
+      const hasValidDetailTableTarget = Boolean(detailTableKey);
+      if ((requiresDetailTableTarget && !hasValidDetailTableTarget) || (!requiresDetailTableTarget && !hasValidFieldTarget && !hasValidDetailTableTarget)) {
         diagnostics.push({
           id: `command_target_missing_${node.id}`,
           level: "error",
           nodeId: node.id,
           code: "command_target_missing",
-          message: "命令节点必须选择操作字段。",
+          message: requiresDetailTableTarget ? "该命令必须选择目标明细表。" : "命令节点必须选择操作对象。",
         });
       }
       if (!command) {
@@ -294,13 +341,31 @@ export function precompileInteractionRule(params: {
           message: "命令节点必须选择命令动作。",
         });
       }
-      if (fieldKey && availableFieldKeys.size > 0 && !isKnownFieldPath(fieldKey, availableFieldKeys)) {
+      if (!requiresDetailTableTarget && fieldKey && availableFieldKeys.size > 0 && !isKnownFieldPath(fieldKey, availableFieldKeys)) {
         diagnostics.push({
           id: `command_target_unknown_${node.id}`,
           level: "error",
           nodeId: node.id,
           code: "command_target_unknown",
           message: `命令节点引用的字段已不存在：${fieldKey}`,
+        });
+      }
+      if (usesDetailTableTarget && detailTableKey && availableDetailTableKeys.size > 0 && !availableDetailTableKeys.has(detailTableKey)) {
+        diagnostics.push({
+          id: `command_detail_table_unknown_${node.id}`,
+          level: "error",
+          nodeId: node.id,
+          code: "command_detail_table_unknown",
+          message: `命令节点引用的明细表已不存在：${detailTableKey}`,
+        });
+      }
+      if (usesDetailTableTarget && !supportsDetailTableTarget) {
+        diagnostics.push({
+          id: `command_detail_table_unsupported_${node.id}`,
+          level: "error",
+          nodeId: node.id,
+          code: "command_detail_table_unsupported",
+          message: "当前命令不支持直接作用于明细表，请改用字段目标或切换为明细表命令。",
         });
       }
       if (command === "setValue" && fieldKey) {
@@ -323,10 +388,93 @@ export function precompileInteractionRule(params: {
       }
     }
 
+    if (node.type === "query") {
+      const sourceType =
+        typeof node.data.sourceType === "string" && node.data.sourceType.trim()
+          ? node.data.sourceType
+          : "relation_records";
+      const saveAs =
+        typeof node.data.saveAs === "string" && node.data.saveAs.trim()
+          ? node.data.saveAs.trim()
+          : "";
+      if (!saveAs) {
+        diagnostics.push({
+          id: `query_save_as_missing_${node.id}`,
+          level: "error",
+          nodeId: node.id,
+          code: "query_save_as_missing",
+          message: "查询节点必须填写写入变量名。",
+        });
+      }
+      if (sourceType === "relation_records") {
+        const sourceFormId =
+          typeof node.data.sourceFormId === "string" && node.data.sourceFormId.trim()
+            ? node.data.sourceFormId.trim()
+            : "";
+        if (!sourceFormId) {
+          diagnostics.push({
+            id: `query_source_form_missing_${node.id}`,
+            level: "error",
+            nodeId: node.id,
+            code: "query_source_form_missing",
+            message: "查询目标表单记录时，必须选择目标表单。",
+          });
+        }
+      }
+      if (sourceType === "detail_rows") {
+        const detailTableKey =
+          typeof node.data.detailTableKey === "string" && node.data.detailTableKey.trim()
+            ? node.data.detailTableKey.trim()
+            : "";
+        if (!detailTableKey) {
+          diagnostics.push({
+            id: `query_detail_table_missing_${node.id}`,
+            level: "error",
+            nodeId: node.id,
+            code: "query_detail_table_missing",
+            message: "查询明细表行时，必须选择目标明细表。",
+          });
+        }
+      }
+    }
+
+    if (node.type === "transform") {
+      const output =
+        typeof node.data.output === "string" && node.data.output.trim()
+          ? node.data.output.trim()
+          : typeof node.data.saveAs === "string" && node.data.saveAs.trim()
+            ? node.data.saveAs.trim()
+            : "";
+      if (!output) {
+        diagnostics.push({
+          id: `transform_output_missing_${node.id}`,
+          level: "error",
+          nodeId: node.id,
+          code: "transform_output_missing",
+          message: "转换节点必须填写输出变量名。",
+        });
+      }
+      const input =
+        node.data.input != null
+          ? String(node.data.input).trim()
+          : typeof node.data.valueFrom === "string" && node.data.valueFrom.trim()
+            ? node.data.valueFrom.trim()
+            : typeof node.data.fieldKey === "string"
+              ? node.data.fieldKey.trim()
+              : "";
+      if (!input) {
+        diagnostics.push({
+          id: `transform_input_missing_${node.id}`,
+          level: "warning",
+          nodeId: node.id,
+          code: "transform_input_missing",
+          message: "转换节点尚未配置输入来源，运行时可能只会输出兜底值。",
+        });
+      }
+    }
+
     if (
-      (node.type === "query" ||
-        node.type === "transform" ||
-        node.type === "context") &&
+      node.type === "context" &&
       typeof node.data.fieldKey === "string" &&
       node.data.fieldKey.trim() &&
       availableFieldKeys.size > 0 &&
@@ -384,11 +532,7 @@ export function precompileInteractionRule(params: {
   const references: RuleReferenceSummary = {
     fields: Array.from(
       new Set([
-        ...params.graphState.graph.nodes.flatMap((node) =>
-          [collectNodeFieldReference(node, "fieldKey"), collectNodeFieldReference(node, "triggerTarget"), collectNodeFieldReference(node, "targetField")].filter(
-            (value): value is string => Boolean(value)
-          )
-        ),
+        ...params.graphState.graph.nodes.flatMap((node) => collectFieldReferencesFromNode(node)),
         ...collectEdgeFieldReferences(params.graphState.graph.edges),
       ])
     ),

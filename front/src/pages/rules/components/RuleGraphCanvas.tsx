@@ -39,7 +39,10 @@ import { RuleNodeCard } from "./RuleNodeCard";
 type RuleGraphCanvasProps = {
   graphState: InteractionRuleGraphState;
   dispatch: AppDispatch;
-  onDropNode: (type: RuleNodeType, position: { x: number; y: number }) => void;
+  onDropNode: (
+    payload: { type: RuleNodeType; presetData?: Record<string, unknown> | null },
+    position: { x: number; y: number }
+  ) => void;
   onAutoLayout: () => void;
 };
 
@@ -253,19 +256,40 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
     event.dataTransfer.dropEffect = "copy";
   };
 
-  const resolveDraggedNodeType = (event: React.DragEvent<HTMLDivElement>) => {
+  const resolveDraggedNodePayload = (event: React.DragEvent<HTMLDivElement>) => {
     for (const mimeType of NODE_TRANSFER_MIME_TYPES) {
       const value = event.dataTransfer.getData(mimeType);
-      if (
-        value === "trigger" ||
-        value === "branch" ||
-        value === "query" ||
-        value === "transform" ||
-        value === "command" ||
-        value === "context" ||
-        value === "notice"
-      ) {
-        return value;
+      if (!value) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(value) as { type?: unknown; presetData?: Record<string, unknown> | null };
+        if (
+          parsed.type === "trigger" ||
+          parsed.type === "branch" ||
+          parsed.type === "query" ||
+          parsed.type === "transform" ||
+          parsed.type === "command" ||
+          parsed.type === "context" ||
+          parsed.type === "notice"
+        ) {
+          return {
+            type: parsed.type as RuleNodeType,
+            presetData: parsed.presetData ?? null,
+          };
+        }
+      } catch {
+        if (
+          value === "trigger" ||
+          value === "branch" ||
+          value === "query" ||
+          value === "transform" ||
+          value === "command" ||
+          value === "context" ||
+          value === "notice"
+        ) {
+          return { type: value as RuleNodeType, presetData: null };
+        }
       }
     }
     return null;
@@ -274,15 +298,15 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
   const onDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const type = resolveDraggedNodeType(event);
-    if (!type) {
+    const payload = resolveDraggedNodePayload(event);
+    if (!payload) {
       return;
     }
     const position = reactFlow.screenToFlowPosition({
       x: event.clientX,
       y: event.clientY,
     });
-    onDropNode(type, position);
+    onDropNode(payload, position);
   };
 
   return (

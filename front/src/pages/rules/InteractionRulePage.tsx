@@ -60,6 +60,7 @@ import { RulePalette } from "./components/RulePalette";
 import {
   createDefaultRuleNode,
   RULE_NODE_PALETTE_ITEMS,
+  type RuleNodeCatalogItem,
 } from "./services/interactionRuleNodeCatalog";
 import { precompileInteractionRule } from "./services/interactionRuleCompiler";
 import { loadInteractionRuleFieldOptions, type RuleFormFieldOption } from "./services/interactionRuleFormFields";
@@ -633,12 +634,21 @@ export function InteractionRulePage() {
     }
   };
 
-  const handleAddNode = (type: RuleNodeType, position?: { x: number; y: number }) => {
+  const handleAddNode = (
+    payload: { type: RuleNodeType; presetData?: Record<string, unknown> | null } | RuleNodeCatalogItem,
+    position?: { x: number; y: number }
+  ) => {
+    const type = payload.type;
+    const presetData = "presetData" in payload ? payload.presetData : null;
     if (type === "trigger" && graphModel.nodes.some((node) => node.type === "trigger")) {
       messageApi.warning("一条规则有且只有一个触发器节点。");
       return;
     }
-    const nextNode = createDefaultRuleNode(type, position ?? { x: 120, y: 120 + graphModel.nodes.length * 48 });
+    const nextNode = createDefaultRuleNode(
+      type,
+      position ?? { x: 120, y: 120 + graphModel.nodes.length * 48 },
+      presetData ?? undefined
+    );
     dispatch(addRuleNode(nextNode));
     dispatch(markRuleGraphDirty(true));
   };
@@ -709,7 +719,7 @@ export function InteractionRulePage() {
 
           <div className="interaction-rule-page__layout interaction-rule-page__layout--editor">
           <div className="interaction-rule-page__column">
-            <RulePalette items={RULE_NODE_PALETTE_ITEMS} onAdd={(type) => handleAddNode(type)} />
+            <RulePalette items={RULE_NODE_PALETTE_ITEMS} onAdd={(item) => handleAddNode(item)} />
           </div>
 
           <div className="interaction-rule-page__center">
@@ -733,7 +743,7 @@ export function InteractionRulePage() {
               <RuleGraphCanvas
                 graphState={graphState}
                 dispatch={dispatch}
-                onDropNode={(type, position) => handleAddNode(type, position)}
+                onDropNode={(payload, position) => handleAddNode(payload, position)}
                 onAutoLayout={() => void handleAutoLayout()}
               />
             </Card>

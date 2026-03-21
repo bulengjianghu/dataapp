@@ -806,6 +806,18 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
     commandRequiresDetailTableTarget ||
     selectedCommandType === "setVisible" ||
     selectedCommandType === "setReadonly";
+  const showCommandLiteralValue =
+    selectedCommandType === "setValue" ||
+    selectedCommandType === "setVisible" ||
+    selectedCommandType === "setReadonly" ||
+    selectedCommandType === "setRequired";
+  const showCommandValueFrom =
+    selectedCommandType === "setValue" ||
+    selectedCommandType === "setOptions" ||
+    selectedCommandType === "setFilter" ||
+    selectedCommandType === "appendRow" ||
+    selectedCommandType === "updateRow" ||
+    selectedCommandType === "replaceTable";
   const commandTargetOptions = useMemo(
     () => [...fieldSelectOptions, ...commandDetailTableOptions],
     [commandDetailTableOptions, fieldSelectOptions]
@@ -1487,36 +1499,50 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
               </Typography.Text>
             ) : null}
           </div>
-          <div>
-            <Typography.Text type="secondary">字面量值</Typography.Text>
-            <Input
-              value={String(selectedNode.data.literalValue ?? "")}
-              onChange={(event) =>
-                dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { literalValue: event.target.value } }))
-              }
-              placeholder="布尔类命令请填写 true / false"
-            />
-          </div>
-          <div>
-            <Typography.Text type="secondary">值来源变量</Typography.Text>
-            <AutoComplete
-              options={runtimeValueOptions}
-              filterOption={(inputValue, option) =>
-                String(option?.label ?? "")
-                  .toLowerCase()
-                  .includes(inputValue.toLowerCase()) ||
-                String(option?.value ?? "")
-                  .toLowerCase()
-                  .includes(inputValue.toLowerCase())
-              }
-              value={String(selectedNode.data.valueFrom ?? "")}
-              onChange={(value) =>
-                dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { valueFrom: value } }))
-              }
-              placeholder="例如 temp.transformedValue / temp.values / event.value"
-              style={{ width: "100%" }}
-            />
-          </div>
+          {showCommandLiteralValue ? (
+            <div>
+              <Typography.Text type="secondary">字面量值</Typography.Text>
+              <Input
+                value={String(selectedNode.data.literalValue ?? "")}
+                onChange={(event) =>
+                  dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { literalValue: event.target.value } }))
+                }
+                placeholder={
+                  selectedCommandType === "setValue"
+                    ? "输入固定值"
+                    : "布尔类命令请填写 true / false"
+                }
+              />
+            </div>
+          ) : null}
+          {showCommandValueFrom ? (
+            <div>
+              <Typography.Text type="secondary">值来源变量</Typography.Text>
+              <AutoComplete
+                options={runtimeValueOptions}
+                filterOption={(inputValue, option) =>
+                  String(option?.label ?? "")
+                    .toLowerCase()
+                    .includes(inputValue.toLowerCase()) ||
+                  String(option?.value ?? "")
+                    .toLowerCase()
+                    .includes(inputValue.toLowerCase())
+                }
+                value={String(selectedNode.data.valueFrom ?? "")}
+                onChange={(value) =>
+                  dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { valueFrom: value } }))
+                }
+                placeholder={
+                  selectedCommandType === "appendRow" || selectedCommandType === "replaceTable"
+                    ? "例如 temp.options / temp.rows"
+                    : selectedCommandType === "setOptions"
+                      ? "例如 temp.customerOptions"
+                      : "例如 temp.transformedValue / event.value"
+                }
+                style={{ width: "100%" }}
+              />
+            </div>
+          ) : null}
           <Typography.Text type="secondary">
             操作对象支持字段和明细表；其中追加/替换明细表、明细表显隐和只读类命令可直接作用到明细表。
           </Typography.Text>

@@ -22,13 +22,22 @@ export function InteractionRuntimeProvider({ rules, children }: InteractionRunti
       return;
     }
     processingRef.current = true;
-    void processNextRuntimeEvent({
-      dispatch: dispatch as AppDispatch,
-      getState: store.getState,
-      rules,
-    }).finally(() => {
-      processingRef.current = false;
-    });
+
+    const drainRuntimeEvents = async () => {
+      try {
+        while (store.getState().interactionEngine.pendingEvents.length > 0) {
+          await processNextRuntimeEvent({
+            dispatch: dispatch as AppDispatch,
+            getState: store.getState,
+            rules,
+          });
+        }
+      } finally {
+        processingRef.current = false;
+      }
+    };
+
+    void drainRuntimeEvents();
   }, [dispatch, initialized, pendingEventCount, rules, store]);
 
   return children;

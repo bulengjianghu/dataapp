@@ -698,13 +698,13 @@ function resolveCommandTarget(
   data: Record<string, unknown>,
   context: RuleExecutionContext
 ): RuntimeCommandTarget | null {
-  const fieldKey = normalizeFieldPath(
+  const rawFieldPath =
     typeof data.fieldKey === "string"
       ? data.fieldKey
       : typeof data.targetField === "string"
         ? data.targetField
-        : ""
-  );
+        : "";
+  const fieldKey = normalizeFieldPath(rawFieldPath);
   const targetType = typeof data.targetType === "string" ? data.targetType : "";
   const detailTableKey =
     typeof data.detailTableKey === "string"
@@ -728,7 +728,9 @@ function resolveCommandTarget(
   if (targetType === "detail_column" && detailTableKey && fieldKey) {
     return { targetType: "detail_column", detailTableKey, fieldKey };
   }
-  if ((targetType === "detail_field" || context.event.scope === "DETAIL_ROW") && detailTableKey && rowId && fieldKey) {
+  const targetsDetailField =
+    targetType === "detail_field" || rawFieldPath.startsWith("detail.");
+  if (targetsDetailField && detailTableKey && rowId && fieldKey) {
     return { targetType: "detail_field", detailTableKey, rowId, fieldKey };
   }
   if (fieldKey) {

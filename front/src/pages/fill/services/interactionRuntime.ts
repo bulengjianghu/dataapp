@@ -707,6 +707,70 @@ function evaluateComparison(
   }
 }
 
+function resolveRuntimeValueForDetailRow(
+  path: unknown,
+  context: RuleExecutionContext,
+  detailTableKey: string,
+  row: DetailRowRuntime
+) {
+  if (typeof path !== "string" || !path.trim()) {
+    return undefined;
+  }
+  if (path.startsWith("temp.") || path.startsWith("event.") || path.startsWith("main.")) {
+    return resolveRuntimeValue(path, context);
+  }
+  if (path.startsWith("detail.")) {
+    const normalized = normalizeFieldPath(path);
+    const segments = normalized.split(".");
+    if (segments.length === 2) {
+      const [targetDetailTableKey, fieldKey] = segments;
+      if (targetDetailTableKey !== detailTableKey) {
+        return undefined;
+      }
+      return row.values[fieldKey];
+    }
+    return row.values[normalized];
+  }
+  return row.values[path];
+}
+
+function evaluateDetailRowFilter(
+  filter: Record<string, unknown>,
+  context: RuleExecutionContext,
+  detailTableKey: string,
+  row: DetailRowRuntime
+) {
+  const fieldPath = filter.leftOperand ?? filter.fieldKey;
+  const operator = typeof filter.operator === "string" ? filter.operator : "eq";
+  const rightValue =
+    typeof filter.valueFrom === "string"
+      ? resolveRuntimeValue(filter.valueFrom, context)
+      : filter.rightOperand ?? filter.expectedValue ?? filter.literalValue ?? filter.value;
+  const leftValue = resolveRuntimeValueForDetailRow(fieldPath, context, detailTableKey, row);
+
+  switch (operator) {
+    case "isEmpty":
+      return leftValue === undefined || leftValue === null || leftValue === "";
+    case "ne":
+      return leftValue !== rightValue;
+    case "contains":
+      return Array.isArray(leftValue)
+        ? leftValue.includes(rightValue)
+        : String(leftValue ?? "").includes(String(rightValue ?? ""));
+    case "gt":
+      return Number(leftValue ?? 0) > Number(rightValue ?? 0);
+    case "gte":
+      return Number(leftValue ?? 0) >= Number(rightValue ?? 0);
+    case "lt":
+      return Number(leftValue ?? 0) < Number(rightValue ?? 0);
+    case "lte":
+      return Number(leftValue ?? 0) <= Number(rightValue ?? 0);
+    case "eq":
+    default:
+      return leftValue === rightValue;
+  }
+}
+
 function evaluateBranchEdge(
   edge: Record<string, unknown>,
   context: RuleExecutionContext
@@ -829,7 +893,61 @@ function executeCommandStep(
 ): { nextNodeId?: string; commands: RuntimeCommand[]; outputSummary: string } {
   const data = typeof step.data === "object" && step.data ? (step.data as Record<string, unknown>) : {};
   const commandType = typeof data.commandType === "string" ? data.commandType : typeof data.command === "string" ? data.command : "";
+  const legacyDetailTableKey =
+    typeof data.detailTableKey === "string"
+      ? data.detailTableKey
+      : typeof context.event.payload.detailTableKey === "string"
+        ? context.event.payload.detailTableKey
+        : undefined;
   const target = resolveCommandTarget(data, context);
+  if (commandType === "updateRow" && legacyDetailTableKey) {
+    const sourceRows = context.runtimeState.data.detailTables[legacyDetailTableKey] ?? [];
+    const filters = Array.isArray(data.filters)
+      ? data.filters.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      : [];
+    const updates = Array.isArray(data.updates)
+      ? data.updates.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      : [];
+    const matchedRows = sourceRows.filter((row) =>
+      filters.length === 0 ? true : filters.every((filter) => evaluateDetailRowFilter(filter, context, legacyDetailTableKey, row))
+    );
+    const commands: RuntimeCommand[] = [];
+    matchedRows.forEach((row) => {
+      const patch = updates.reduce<Record<string, unknown>>((result, item) => {
+        const targetField = typeof item.targetField === "string" ? item.targetField : "";
+        if (!targetField) {
+          return result;
+        }
+        const rawValue =
+          typeof item.valueFrom === "string" && item.valueFrom.trim()
+            ? resolveRuntimeValue(item.valueFrom, context)
+            : item.literalValue ?? item.value;
+        const targetFieldState =
+          context.runtimeState.componentState.detailTables[legacyDetailTableKey]?.columns[targetField];
+        result[targetField] = normalizeValueByFieldState(rawValue, targetFieldState);
+        return result;
+      }, {});
+      if (Object.keys(patch).length === 0) {
+        return;
+      }
+      commands.push({
+        commandType,
+        target: {
+          targetType: "detail_row",
+          detailTableKey: legacyDetailTableKey,
+          rowId: row.__rowId,
+        },
+        value: patch,
+        emitEventAfterCommand: data.emitEventAfterCommand === true,
+      });
+    });
+
+    return {
+      nextNodeId: resolveNextTarget(step),
+      commands,
+      outputSummary: `updateRow -> ${legacyDetailTableKey} 命中 ${commands.length} 行`,
+    };
+  }
   const value = data.valueFrom != null ? resolveRuntimeValue(data.valueFrom, context) : data.literalValue ?? data.value;
 
   if (!commandType || !target) {

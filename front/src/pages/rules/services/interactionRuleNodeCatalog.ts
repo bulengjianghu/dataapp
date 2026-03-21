@@ -124,11 +124,11 @@ const COMMAND_RULE_NODE_PALETTE_ITEMS: RuleNodeCatalogItem[] = [
     key: "command_update_row",
     type: "command",
     label: "更新明细行",
-    description: "按当前行上下文更新目标明细行。",
+    description: "按筛选条件批量更新目标明细表中的行。",
     accent: "#722ed1",
     group: "命令",
     tagLabel: "updateRow",
-    presetData: { label: "更新明细行", commandType: "updateRow", command: "updateRow", targetType: "detail_row", fieldKey: "", detailTableKey: "" },
+    presetData: { label: "更新明细行", commandType: "updateRow", command: "updateRow", targetType: "detail_table", fieldKey: "", detailTableKey: "" },
   },
   {
     key: "command_replace_table",

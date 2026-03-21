@@ -137,11 +137,22 @@ function buildStepPlan(graphState: InteractionRuleGraphState, triggerId: string)
     if (!node || node.type === "trigger") {
       continue;
     }
+    const normalizedData =
+      node.type === "command" &&
+      (node.data.commandType === "updateRow" || node.data.command === "updateRow") &&
+      typeof node.data.detailTableKey === "string" &&
+      node.data.detailTableKey.trim() &&
+      node.data.targetType === "detail_row"
+        ? {
+            ...node.data,
+            targetType: "detail_table",
+          }
+        : node.data;
     const outgoing = outgoingBySource.get(nodeId) ?? [];
     plan.push({
       id: node.id,
       type: node.type,
-      data: node.data,
+      data: normalizedData,
       next: outgoing.map((edge) => ({
         target: edge.target,
         flowType: edge.flowType ?? (node.type === "branch" ? "condition" : "direct"),
@@ -366,6 +377,31 @@ export function precompileInteractionRule(params: {
           nodeId: node.id,
           code: "command_detail_table_unsupported",
           message: "当前命令不支持直接作用于明细表，请改用字段目标或切换为明细表命令。",
+        });
+      }
+      if (command === "updateRow") {
+        const updates = Array.isArray(node.data.updates)
+          ? node.data.updates.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+          : [];
+        if (updates.length === 0) {
+          diagnostics.push({
+            id: `command_update_row_updates_missing_${node.id}`,
+            level: "error",
+            nodeId: node.id,
+            code: "command_update_row_updates_missing",
+            message: "更新明细行至少需要配置一个字段更新项。",
+          });
+        }
+        updates.forEach((item, index) => {
+          if (!(typeof item.targetField === "string" && item.targetField.trim())) {
+            diagnostics.push({
+              id: `command_update_row_target_field_missing_${node.id}_${index}`,
+              level: "warning",
+              nodeId: node.id,
+              code: "command_update_row_target_field_missing",
+              message: "更新明细行存在未选择目标字段的更新项。",
+            });
+          }
         });
       }
       if (command === "setValue" && fieldKey) {

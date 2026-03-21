@@ -41,6 +41,14 @@ type TransformMappingDraftRow = {
   targetField: string;
 };
 
+type UpdateFieldDraftRow = {
+  id: string;
+  targetField: string;
+  valueMode: "literal" | "variable";
+  literalValue: string;
+  valueFrom: string;
+};
+
 const COMMAND_OPTIONS = [
   { label: "设置值", value: "setValue" },
   { label: "清空值", value: "clearValue" },
@@ -194,6 +202,47 @@ function serializeTransformMappings(rows: TransformMappingDraftRow[]) {
     }));
 }
 
+function preserveRowIds<T extends { id: string }>(
+  currentRows: T[],
+  nextRows: Omit<T, "id">[]
+): T[] {
+  return nextRows.map((row, index) => ({
+    id: currentRows[index]?.id ?? createRowId(),
+    ...row,
+  }) as T);
+}
+
+function normalizeUpdateFieldRows(value: unknown): UpdateFieldDraftRow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      id: createRowId(),
+      targetField: typeof item.targetField === "string" ? item.targetField : "",
+      valueMode: typeof item.valueFrom === "string" && item.valueFrom.trim() ? "variable" : "literal",
+      literalValue: item.literalValue == null ? String(item.value ?? "") : String(item.literalValue),
+      valueFrom: typeof item.valueFrom === "string" ? item.valueFrom : "",
+    }));
+}
+
+function serializeUpdateFieldRows(rows: UpdateFieldDraftRow[]) {
+  return rows
+    .filter((row) => row.targetField.trim() && (row.valueMode === "variable" ? row.valueFrom.trim() : true))
+    .map((row) =>
+      row.valueMode === "variable"
+        ? {
+            targetField: row.targetField,
+            valueFrom: row.valueFrom,
+          }
+        : {
+            targetField: row.targetField,
+            literalValue: row.literalValue,
+          }
+    );
+}
+
 function normalizeQueryFilterRows(value: unknown): QueryFilterDraftRow[] {
   if (!Array.isArray(value)) {
     return [];
@@ -208,6 +257,14 @@ function normalizeQueryFilterRows(value: unknown): QueryFilterDraftRow[] {
       literalValue: item.value == null ? "" : String(item.value),
       valueFrom: typeof item.valueFrom === "string" ? item.valueFrom : "",
     }));
+}
+
+function normalizeQueryFilterRowsWithIds(
+  value: unknown,
+  currentRows: QueryFilterDraftRow[]
+): QueryFilterDraftRow[] {
+  const normalizedRows = normalizeQueryFilterRows(value).map(({ id: _id, ...row }) => row);
+  return preserveRowIds(currentRows, normalizedRows);
 }
 
 function serializeQueryFilterRows(rows: QueryFilterDraftRow[]) {
@@ -437,26 +494,13 @@ function QueryFiltersEditor({
   sourceFieldOptions,
   onChange,
 }: {
-  value: unknown;
+  value: QueryFilterDraftRow[];
   sourceFieldOptions: SelectOption[];
-  onChange: (value: unknown) => void;
+  onChange: (value: QueryFilterDraftRow[]) => void;
 }) {
-  const [rows, setRows] = useState<QueryFilterDraftRow[]>(() => normalizeQueryFilterRows(value));
-  const serializedValue = useMemo(() => serializeQueryFilterRows(normalizeQueryFilterRows(value)), [value]);
-
-  useEffect(() => {
-    setRows(normalizeQueryFilterRows(value));
-  }, [value]);
-
   const updateRows = (updater: QueryFilterDraftRow[] | ((current: QueryFilterDraftRow[]) => QueryFilterDraftRow[])) => {
-    setRows((current) => {
-      const nextRows = typeof updater === "function" ? updater(current) : updater;
-      const serializedNextRows = serializeQueryFilterRows(nextRows);
-      if (!isSameSerializedValue(serializedNextRows, serializedValue)) {
-        onChange(serializedNextRows);
-      }
-      return nextRows;
-    });
+    const nextRows = typeof updater === "function" ? updater(value) : updater;
+    onChange(nextRows);
   };
 
   const columns: ColumnsType<QueryFilterDraftRow> = [
@@ -566,7 +610,7 @@ function QueryFiltersEditor({
     <Flex vertical gap={12}>
       <Flex justify="space-between" align="center" gap={12}>
         <Space wrap>
-          <Tag color={rows.length > 0 ? "blue" : "default"}>{rows.length} 条筛选</Tag>
+          <Tag color={value.length > 0 ? "blue" : "default"}>{value.length} 条筛选</Tag>
           {sourceFieldOptions.length === 0 ? <Typography.Text type="secondary">请先选择目标表单</Typography.Text> : null}
         </Space>
         <Button
@@ -589,7 +633,7 @@ function QueryFiltersEditor({
           新增筛选
         </Button>
       </Flex>
-      {rows.length === 0 ? (
+      {value.length === 0 ? (
         <Empty description={sourceFieldOptions.length === 0 ? "请先选择目标表单" : "暂无筛选条件"} image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ) : (
         <Table
@@ -597,7 +641,7 @@ function QueryFiltersEditor({
           size="small"
           pagination={false}
           columns={columns}
-          dataSource={rows}
+          dataSource={value}
         />
       )}
     </Flex>
@@ -620,7 +664,12 @@ function TransformMappingsEditor({
   const serializedValue = useMemo(() => serializeTransformMappings(normalizeTransformMappings(value)), [value]);
 
   useEffect(() => {
-    setRows(normalizeTransformMappings(value));
+    setRows((current) =>
+      preserveRowIds(
+        current,
+        normalizeTransformMappings(value).map(({ id: _id, ...row }) => row)
+      )
+    );
   }, [value]);
 
   const updateRows = (
@@ -753,6 +802,244 @@ function TransformMappingsEditor({
   );
 }
 
+function UpdateFieldsEditor({
+  value,
+  targetFieldOptions,
+  runtimeValueOptions,
+  onChange,
+}: {
+  value: UpdateFieldDraftRow[];
+  targetFieldOptions: SelectOption[];
+  runtimeValueOptions: SelectOption[];
+  onChange: (value: UpdateFieldDraftRow[]) => void;
+}) {
+  const updateRows = (
+    updater: UpdateFieldDraftRow[] | ((current: UpdateFieldDraftRow[]) => UpdateFieldDraftRow[])
+  ) => {
+    const nextRows = typeof updater === "function" ? updater(value) : updater;
+    onChange(nextRows);
+  };
+
+  const columns: ColumnsType<UpdateFieldDraftRow> = [
+    {
+      title: "目标字段",
+      dataIndex: "targetField",
+      width: 320,
+      render: (_, row) => (
+        <Select
+          showSearch
+          allowClear
+          placeholder={targetFieldOptions.length > 0 ? "选择字段" : "请先选择明细表"}
+          options={targetFieldOptions}
+          value={row.targetField || undefined}
+          style={{ width: "100%" }}
+          onChange={(value) =>
+            updateRows((current) =>
+              current.map((item) => (item.id === row.id ? { ...item, targetField: String(value ?? "") } : item))
+            )
+          }
+        />
+      ),
+    },
+    {
+      title: "值类型",
+      dataIndex: "valueMode",
+      width: 120,
+      render: (_, row) => (
+        <Select
+          options={[
+            { label: "固定值", value: "literal" },
+            { label: "变量", value: "variable" },
+          ]}
+          value={row.valueMode}
+          onChange={(nextValue) =>
+            updateRows((current) =>
+              current.map((item) =>
+                item.id === row.id
+                  ? { ...item, valueMode: nextValue === "variable" ? "variable" : "literal" }
+                  : item
+              )
+            )
+          }
+        />
+      ),
+    },
+    {
+      title: "写入值",
+      dataIndex: "value",
+      render: (_, row) =>
+        row.valueMode === "variable" ? (
+          <AutoComplete
+            options={runtimeValueOptions}
+            filterOption={(inputValue, option) =>
+              String(option?.label ?? "").toLowerCase().includes(inputValue.toLowerCase()) ||
+              String(option?.value ?? "").toLowerCase().includes(inputValue.toLowerCase())
+            }
+            value={row.valueFrom}
+            onChange={(value) =>
+              updateRows((current) =>
+                current.map((item) => (item.id === row.id ? { ...item, valueFrom: value } : item))
+              )
+            }
+          >
+            <Input placeholder="例如 main.xxx / temp.xxx / event.value" />
+          </AutoComplete>
+        ) : (
+          <Input
+            value={row.literalValue}
+            onChange={(event) =>
+              updateRows((current) =>
+                current.map((item) => (item.id === row.id ? { ...item, literalValue: event.target.value } : item))
+              )
+            }
+            placeholder="请输入固定值"
+          />
+        ),
+    },
+    {
+      title: "操作",
+      key: "actions",
+      width: 72,
+      render: (_, row) => (
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => updateRows((current) => current.filter((item) => item.id !== row.id))}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <Flex vertical gap={12}>
+      <Flex justify="space-between" align="center" gap={12}>
+        <Space wrap>
+          <Tag color={value.length > 0 ? "blue" : "default"}>{value.length} 条更新</Tag>
+          {targetFieldOptions.length === 0 ? <Typography.Text type="secondary">请先选择目标明细表</Typography.Text> : null}
+        </Space>
+        <Button
+          icon={<PlusOutlined />}
+          disabled={targetFieldOptions.length === 0}
+          onClick={() =>
+            updateRows((current) => [
+              ...current,
+              {
+                id: createRowId(),
+                targetField: "",
+                valueMode: "literal",
+                literalValue: "",
+                valueFrom: "",
+              },
+            ])
+          }
+        >
+          新增更新字段
+        </Button>
+      </Flex>
+      {value.length === 0 ? (
+        <Empty description={targetFieldOptions.length === 0 ? "请先选择目标明细表" : "暂无字段更新项"} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        <Table rowKey="id" size="small" pagination={false} columns={columns} dataSource={value} />
+      )}
+    </Flex>
+  );
+}
+
+function UpdateRowConfigEditor({
+  filters,
+  updates,
+  sourceFieldOptions,
+  targetFieldOptions,
+  runtimeValueOptions,
+  onFiltersChange,
+  onUpdatesChange,
+}: {
+  filters: unknown;
+  updates: unknown;
+  sourceFieldOptions: SelectOption[];
+  targetFieldOptions: SelectOption[];
+  runtimeValueOptions: SelectOption[];
+  onFiltersChange: (value: unknown) => void;
+  onUpdatesChange: (value: unknown) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState(() => normalizeQueryFilterRows(filters));
+  const [draftUpdates, setDraftUpdates] = useState(() => normalizeUpdateFieldRows(updates));
+  const filterCount = normalizeQueryFilterRows(filters).length;
+  const updateCount = normalizeUpdateFieldRows(updates).length;
+
+  useEffect(() => {
+    if (open) {
+      return;
+    }
+    setDraftFilters(normalizeQueryFilterRows(filters));
+  }, [filters, open]);
+
+  useEffect(() => {
+    if (open) {
+      return;
+    }
+    setDraftUpdates(normalizeUpdateFieldRows(updates));
+  }, [updates, open]);
+
+  return (
+    <>
+      <Flex justify="space-between" align="center" gap={12}>
+        <Space wrap>
+          <Tag color={filterCount > 0 ? "blue" : "default"}>{filterCount} 条筛选</Tag>
+          <Tag color={updateCount > 0 ? "green" : "default"}>{updateCount} 条更新</Tag>
+          {targetFieldOptions.length === 0 ? (
+            <Typography.Text type="secondary">请先选择目标明细表</Typography.Text>
+          ) : null}
+        </Space>
+        <Button icon={<SettingOutlined />} onClick={() => setOpen(true)}>
+          配置更新规则
+        </Button>
+      </Flex>
+      <Modal
+        title="配置更新明细行"
+        open={open}
+        width={1180}
+        onCancel={() => {
+          setDraftFilters(normalizeQueryFilterRows(filters));
+          setDraftUpdates(normalizeUpdateFieldRows(updates));
+          setOpen(false);
+        }}
+        onOk={() => {
+          onFiltersChange(serializeQueryFilterRows(draftFilters));
+          onUpdatesChange(serializeUpdateFieldRows(draftUpdates));
+          setOpen(false);
+        }}
+      >
+        <Flex vertical gap={20}>
+          <div>
+            <Typography.Text type="secondary">筛选条件</Typography.Text>
+            <div style={{ marginTop: 8 }}>
+              <QueryFiltersEditor
+                value={draftFilters}
+                sourceFieldOptions={sourceFieldOptions}
+                onChange={setDraftFilters}
+              />
+            </div>
+          </div>
+          <div>
+            <Typography.Text type="secondary">字段更新</Typography.Text>
+            <div style={{ marginTop: 8 }}>
+              <UpdateFieldsEditor
+                value={draftUpdates}
+                targetFieldOptions={targetFieldOptions}
+                runtimeValueOptions={runtimeValueOptions}
+                onChange={setDraftUpdates}
+              />
+            </div>
+          </div>
+        </Flex>
+      </Modal>
+    </>
+  );
+}
+
 export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNodePropertyPanelProps) {
   const dispatch = useAppDispatch();
   const selectedNode = graphState.graph.nodes.find((item) => item.id === graphState.selectedNodeId) ?? null;
@@ -816,8 +1103,15 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
     selectedCommandType === "setOptions" ||
     selectedCommandType === "setFilter" ||
     selectedCommandType === "appendRow" ||
-    selectedCommandType === "updateRow" ||
     selectedCommandType === "replaceTable";
+  const selectedCommandDetailTableKey =
+    showCommandConfig && selectedNode && typeof selectedNode.data.detailTableKey === "string"
+      ? selectedNode.data.detailTableKey
+      : "";
+  const commandDetailFieldOptions = useMemo(
+    () => (selectedCommandDetailTableKey ? buildDetailTableSourceFieldOptions(selectedCommandDetailTableKey, fieldOptions) : []),
+    [fieldOptions, selectedCommandDetailTableKey]
+  );
   const commandTargetOptions = useMemo(
     () => [...fieldSelectOptions, ...commandDetailTableOptions],
     [commandDetailTableOptions, fieldSelectOptions]
@@ -1146,10 +1440,10 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
               <div>
                 <Typography.Text type="secondary">筛选条件</Typography.Text>
                 <QueryFiltersEditor
-                  value={selectedNode.data.filters}
+                  value={normalizeQueryFilterRows(selectedNode.data.filters)}
                   sourceFieldOptions={querySourceFieldOptions}
                   onChange={(value) =>
-                    dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { filters: value } }))
+                    dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { filters: serializeQueryFilterRows(value) } }))
                   }
                 />
               </div>
@@ -1421,9 +1715,9 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
                   nodeId: selectedNode.id,
                   patch:
                     value === "appendRow" || value === "replaceTable"
-                      ? { commandType: value, command: value, targetType: "detail_table", fieldKey: "" }
+                      ? { commandType: value, command: value, targetType: "detail_table", fieldKey: "", literalValue: "", valueFrom: "" }
                       : value === "updateRow"
-                        ? { commandType: value, command: value, targetType: "detail_row", fieldKey: "" }
+                        ? { commandType: value, command: value, targetType: "detail_table", fieldKey: "", literalValue: "", valueFrom: "" }
                         : value === "setVisible" || value === "setReadonly"
                           ? { commandType: value, command: value }
                           : { commandType: value, command: value, targetType: "", detailTableKey: "" },
@@ -1462,10 +1756,7 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
                       patch: {
                         detailTableKey,
                         fieldKey: "",
-                        targetType:
-                          selectedCommandType === "updateRow"
-                            ? "detail_row"
-                            : "detail_table",
+                        targetType: "detail_table",
                       },
                     })
                   );
@@ -1499,6 +1790,26 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
               </Typography.Text>
             ) : null}
           </div>
+          {selectedCommandType === "updateRow" ? (
+            <div>
+              <Typography.Text type="secondary">更新配置</Typography.Text>
+              <div style={{ marginTop: 8 }}>
+                <UpdateRowConfigEditor
+                  filters={selectedNode.data.filters}
+                  updates={selectedNode.data.updates}
+                  sourceFieldOptions={commandDetailFieldOptions}
+                  targetFieldOptions={commandDetailFieldOptions}
+                  runtimeValueOptions={runtimeValueOptions}
+                  onFiltersChange={(value) =>
+                    dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { filters: value } }))
+                  }
+                  onUpdatesChange={(value) =>
+                    dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { updates: value } }))
+                  }
+                />
+              </div>
+            </div>
+          ) : null}
           {showCommandLiteralValue ? (
             <div>
               <Typography.Text type="secondary">字面量值</Typography.Text>

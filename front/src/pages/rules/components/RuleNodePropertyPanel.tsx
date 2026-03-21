@@ -1418,26 +1418,6 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
                 />
               </div>
               <div>
-                <Typography.Text type="secondary">固定关键字</Typography.Text>
-                <Input
-                  value={String(selectedNode.data.keyword ?? "")}
-                  onChange={(event) =>
-                    dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { keyword: event.target.value } }))
-                  }
-                  placeholder="不依赖上下文时可直接填写固定关键字"
-                />
-              </div>
-              <div>
-                <Typography.Text type="secondary">关键字来源变量</Typography.Text>
-                <Input
-                  value={String(selectedNode.data.keywordFrom ?? "")}
-                  onChange={(event) =>
-                    dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { keywordFrom: event.target.value } }))
-                  }
-                  placeholder="例如 event.payload.keyword / main.customerType"
-                />
-              </div>
-              <div>
                 <Typography.Text type="secondary">筛选条件</Typography.Text>
                 <QueryFiltersEditor
                   value={normalizeQueryFilterRows(selectedNode.data.filters)}

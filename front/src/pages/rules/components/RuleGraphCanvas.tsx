@@ -129,9 +129,26 @@ const NODE_TRANSFER_MIME_TYPES = [
   "text/plain",
 ] as const;
 
+const RULE_NODE_FALLBACK_SIZE = {
+  width: 108,
+  height: 58,
+} as const;
+
 function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProps) {
   const reactFlow = useReactFlow();
   const [messageApi, contextHolder] = message.useMessage();
+
+  const resolveDropNodeCenterOffset = () => {
+    const zoom = reactFlow.getZoom() || 1;
+    const sampleNode = document.querySelector(".react-flow__node") as HTMLElement | null;
+    const bounds = sampleNode?.getBoundingClientRect();
+    const width = bounds?.width ? bounds.width / zoom : RULE_NODE_FALLBACK_SIZE.width;
+    const height = bounds?.height ? bounds.height / zoom : RULE_NODE_FALLBACK_SIZE.height;
+    return {
+      x: width / 2,
+      y: height / 2,
+    };
+  };
 
   const nodes = useMemo<Node[]>(
     () =>
@@ -302,11 +319,15 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
     if (!payload) {
       return;
     }
-    const position = reactFlow.screenToFlowPosition({
+    const dropPosition = reactFlow.screenToFlowPosition({
       x: event.clientX,
       y: event.clientY,
     });
-    onDropNode(payload, position);
+    const centerOffset = resolveDropNodeCenterOffset();
+    onDropNode(payload, {
+      x: dropPosition.x - centerOffset.x,
+      y: dropPosition.y - centerOffset.y,
+    });
   };
 
   return (

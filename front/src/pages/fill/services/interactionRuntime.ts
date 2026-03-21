@@ -420,7 +420,6 @@ function buildQueryCacheKey(data: Record<string, unknown>, context: RuleExecutio
     sourceFormId: data.sourceFormId,
     fieldSelection: data.fieldSelection,
     filters: data.filters,
-    keyword: data.keyword ?? context.event.payload.keyword,
     displayFields: data.displayFields,
   });
 }
@@ -498,10 +497,9 @@ async function executeQueryStep(
                 : item.value,
           }))
       : [];
-    const keyword = String(resolveRuntimeValue(data.keywordFrom, context) ?? data.keyword ?? context.event.payload.keyword ?? "");
     const result = await searchRelationRecords({
       sourceFormId,
-      keyword,
+      keyword: "",
       displayFields,
       filters,
     });

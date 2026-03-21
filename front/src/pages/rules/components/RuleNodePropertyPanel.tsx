@@ -9,6 +9,7 @@ import {
   loadInteractionRuleFieldOptions,
   type RuleFormFieldOption,
 } from "../services/interactionRuleFormFields";
+import { INTERACTION_EVENT_TYPE_OPTIONS } from "../services/interactionRuleEvents";
 
 type RuleNodePropertyPanelProps = {
   graphState: InteractionRuleGraphState;
@@ -67,6 +68,9 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
     selectedNode?.type === "transform" ||
     selectedNode?.type === "context";
   const showTriggerTarget = selectedNode?.type === "trigger";
+  const triggerNeedsTarget =
+    selectedNode?.type === "trigger" &&
+    (selectedNode.data.eventType === "FIELD_CHANGE_MAIN" || selectedNode.data.eventType === "FIELD_CHANGE_DETAIL");
   const showCommandConfig = selectedNode?.type === "command";
   const showContextConfig = selectedNode?.type === "context";
   if (!selectedNode) {
@@ -134,41 +138,71 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
         </>
       ) : null}
       {showTriggerTarget ? (
-        <div>
-          <Typography.Text type="secondary">触发目标</Typography.Text>
-          <Select
-            showSearch
-            allowClear
-            value={
-              typeof selectedNode.data.triggerTarget === "string" && selectedNode.data.triggerTarget
-                ? selectedNode.data.triggerTarget
-                : typeof selectedNode.data.targetField === "string" && selectedNode.data.targetField
-                  ? selectedNode.data.targetField
-                  : undefined
-            }
-            options={fieldSelectOptions}
-            onChange={(value) =>
-              dispatch(
-                updateRuleNodeData({
-                  nodeId: selectedNode.id,
-                  patch: { triggerTarget: String(value ?? ""), targetField: String(value ?? "") },
-                })
-              )
-            }
-            placeholder={fieldSelectOptions.length > 0 ? "选择触发字段" : "当前表单暂无可选字段"}
-            optionFilterProp="label"
-            style={{ width: "100%" }}
-            notFoundContent="当前表单暂无可选字段"
-          />
-          {typeof (selectedNode.data.triggerTarget ?? selectedNode.data.targetField) === "string" &&
-          String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField) &&
-          fieldOptionMap.has(String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField)) ? null : typeof (selectedNode.data.triggerTarget ?? selectedNode.data.targetField) === "string" &&
-            String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField) ? (
-            <Typography.Text type="danger">
-              当前值未匹配到字段，保留原配置：{String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField)}
-            </Typography.Text>
-          ) : null}
-        </div>
+        <>
+          <div>
+            <Typography.Text type="secondary">触发事件</Typography.Text>
+            <Select
+              value={typeof selectedNode.data.eventType === "string" ? selectedNode.data.eventType : "FIELD_CHANGE_MAIN"}
+              options={INTERACTION_EVENT_TYPE_OPTIONS}
+              onChange={(value) =>
+                dispatch(
+                  updateRuleNodeData({
+                    nodeId: selectedNode.id,
+                    patch:
+                      value === "FIELD_CHANGE_MAIN" || value === "FIELD_CHANGE_DETAIL"
+                        ? { eventType: value }
+                        : { eventType: value, triggerTarget: "", targetField: "" },
+                  })
+                )
+              }
+              style={{ width: "100%" }}
+            />
+          </div>
+          {triggerNeedsTarget ? (
+            <div>
+              <Typography.Text type="secondary">触发目标</Typography.Text>
+              <Select
+                showSearch
+                allowClear
+                value={
+                  typeof selectedNode.data.triggerTarget === "string" && selectedNode.data.triggerTarget
+                    ? selectedNode.data.triggerTarget
+                    : typeof selectedNode.data.targetField === "string" && selectedNode.data.targetField
+                      ? selectedNode.data.targetField
+                      : undefined
+                }
+                options={fieldSelectOptions}
+                onChange={(value) =>
+                  dispatch(
+                    updateRuleNodeData({
+                      nodeId: selectedNode.id,
+                      patch: { triggerTarget: String(value ?? ""), targetField: String(value ?? "") },
+                    })
+                  )
+                }
+                placeholder={fieldSelectOptions.length > 0 ? "选择触发字段" : "当前表单暂无可选字段"}
+                optionFilterProp="label"
+                style={{ width: "100%" }}
+                notFoundContent="当前表单暂无可选字段"
+              />
+              {typeof (selectedNode.data.triggerTarget ?? selectedNode.data.targetField) === "string" &&
+              String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField) &&
+              fieldOptionMap.has(String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField)) ? null : typeof (selectedNode.data.triggerTarget ?? selectedNode.data.targetField) === "string" &&
+                String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField) ? (
+                <Typography.Text type="danger">
+                  当前值未匹配到字段，保留原配置：{String(selectedNode.data.triggerTarget ?? selectedNode.data.targetField)}
+                </Typography.Text>
+              ) : null}
+            </div>
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message="当前事件不需要触发目标"
+              description="该触发事件在记录级生效，运行时会直接从规则入口开始执行。"
+            />
+          )}
+        </>
       ) : null}
       {showCommandConfig ? (
         <div>

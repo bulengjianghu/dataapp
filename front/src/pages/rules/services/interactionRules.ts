@@ -7,6 +7,7 @@ import {
   deserializeCompiledInteractionRule,
   serializeCompiledInteractionRule,
 } from "../../../store/slices/interactionRuleDraftSlice";
+import { isInteractionEventType } from "./interactionRuleEvents";
 
 export type InteractionRuleSummary = {
   ruleId: string;
@@ -135,6 +136,24 @@ function deserializeDraft(payload: InteractionRuleDraftResponse): InteractionRul
   };
 }
 
+function readTriggerEventTypeFromGraph(graphJson: Record<string, unknown> | undefined) {
+  const nodes = Array.isArray(graphJson?.nodes) ? graphJson.nodes : [];
+  for (const item of nodes) {
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+    const node = item as { type?: unknown; data?: Record<string, unknown> };
+    if (node.type !== "trigger") {
+      continue;
+    }
+    const eventType = node.data?.eventType;
+    if (isInteractionEventType(eventType)) {
+      return eventType;
+    }
+  }
+  return null;
+}
+
 export async function listInteractionRulesOnServer(formId: string): Promise<InteractionRuleSummary[]> {
   const items = await request<InteractionRuleSummaryResponse[]>(`/api/admin/forms/${formId}/interaction-rules`);
   return items.map((item) => ({
@@ -172,6 +191,11 @@ export async function saveInteractionRuleDraftToServer(
     throw new Error("规则草稿尚未初始化");
   }
 
+  const derivedEventType =
+    draft.compiledRule?.eventType ??
+    readTriggerEventTypeFromGraph(draft.graphJson) ??
+    draft.meta.eventType;
+
   const saved = await request<InteractionRuleDraftResponse>(
     `/api/admin/forms/${draft.meta.formId}/interaction-rules/${draft.meta.ruleId}/draft`,
     {
@@ -180,7 +204,7 @@ export async function saveInteractionRuleDraftToServer(
       body: JSON.stringify({
         ruleCode: draft.meta.ruleCode,
         ruleName: draft.meta.ruleName,
-        eventType: draft.meta.eventType,
+        eventType: derivedEventType,
         scopeType: draft.meta.scopeType,
         priority: draft.meta.priority,
         description: draft.meta.description,

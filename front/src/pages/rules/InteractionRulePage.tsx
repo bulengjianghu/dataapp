@@ -73,17 +73,7 @@ import {
   type InteractionRulePublishedVersion,
   type InteractionRuleValidationResult,
 } from "./services/interactionRules";
-
-const EVENT_TYPE_OPTIONS: { label: string; value: InteractionEventType }[] = [
-  { label: "主表字段变化", value: "FIELD_CHANGE_MAIN" },
-  { label: "明细字段变化", value: "FIELD_CHANGE_DETAIL" },
-  { label: "明细行新增", value: "DETAIL_ROW_ADDED" },
-  { label: "明细行删除", value: "DETAIL_ROW_REMOVED" },
-  { label: "关联选择打开", value: "RELATION_OPEN" },
-  { label: "关联选择确认", value: "RELATION_SELECTED" },
-  { label: "表单初始化", value: "FORM_INIT" },
-  { label: "提交前校验", value: "FORM_SUBMIT_BEFORE" },
-];
+import { isInteractionEventType } from "./services/interactionRuleEvents";
 
 const AUTO_SAVE_DELAY = 1500;
 
@@ -132,7 +122,7 @@ function createRuleDraftFingerprint(
   });
 }
 
-function normalizeGraphPayload(payload: Record<string, unknown> | undefined) {
+function normalizeGraphPayload(payload: Record<string, unknown> | undefined, fallbackEventType?: InteractionEventType) {
   const rawNodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
   const rawEdges = Array.isArray(payload?.edges) ? payload.edges : [];
   const rawViewport = payload?.viewport;
@@ -140,9 +130,17 @@ function normalizeGraphPayload(payload: Record<string, unknown> | undefined) {
     nodes: rawNodes.map((item) => {
       const node = item as RuleGraphNode;
       const legacyType = typeof (item as { type?: unknown }).type === "string" ? String((item as { type?: unknown }).type) : "";
+      const rawData =
+        typeof (item as { data?: unknown }).data === "object" && (item as { data?: unknown }).data
+          ? { ...((item as { data?: Record<string, unknown> }).data ?? {}) }
+          : {};
+      if ((legacyType === "trigger" || node.type === "trigger") && !isInteractionEventType(rawData.eventType) && fallbackEventType) {
+        rawData.eventType = fallbackEventType;
+      }
       return {
         ...node,
         type: (legacyType === "condition" ? "branch" : legacyType) as RuleGraphNode["type"],
+        data: rawData,
       } as RuleGraphNode;
     }),
     edges: rawEdges.map((item) => {
@@ -186,15 +184,6 @@ function RuleMetaPanel() {
         <Input
           value={meta.ruleName}
           onChange={(event) => dispatch(updateInteractionRuleMeta({ key: "ruleName", value: event.target.value }))}
-        />
-      </div>
-      <div>
-        <Typography.Text type="secondary">触发事件</Typography.Text>
-        <Select
-          value={meta.eventType}
-          options={EVENT_TYPE_OPTIONS}
-          onChange={(value) => dispatch(updateInteractionRuleMeta({ key: "eventType", value }))}
-          style={{ width: "100%" }}
         />
       </div>
       <div>
@@ -424,7 +413,7 @@ export function InteractionRulePage() {
           initializeRuleGraph({
             formId,
             ruleId,
-            graph: normalizeGraphPayload(draft.graphJson),
+            graph: normalizeGraphPayload(draft.graphJson, draft.meta.eventType),
           })
         );
         setPersistedFingerprint(createRuleDraftFingerprint(draft.meta, draft.graphJson, draft.compiledRule ?? null));
@@ -480,7 +469,6 @@ export function InteractionRulePage() {
     }
     const compiled = precompileInteractionRule({
       ruleId: ruleDraft.meta.ruleId,
-      eventType: ruleDraft.meta.eventType,
       priority: ruleDraft.meta.priority,
       graphState: {
         ...graphState,
@@ -497,7 +485,6 @@ export function InteractionRulePage() {
     dispatch,
     graphModel,
     graphState.ruleId,
-    ruleDraft.meta.eventType,
     ruleDraft.meta.priority,
     ruleDraft.meta.ruleId,
     availableFields,
@@ -524,7 +511,7 @@ export function InteractionRulePage() {
       initializeRuleGraph({
         formId: saved.meta.formId,
         ruleId: saved.meta.ruleId,
-        graph: normalizeGraphPayload(saved.graphJson),
+        graph: normalizeGraphPayload(saved.graphJson, saved.meta.eventType),
         selectedNodeId: latestDraft.selectedNodeId,
         selectedEdgeId: latestDraft.selectedEdgeId,
       })
@@ -581,7 +568,7 @@ export function InteractionRulePage() {
             initializeRuleGraph({
               formId: saved.meta.formId,
               ruleId: saved.meta.ruleId,
-              graph: normalizeGraphPayload(saved.graphJson),
+              graph: normalizeGraphPayload(saved.graphJson, saved.meta.eventType),
               selectedNodeId: latestDraftRef.current.selectedNodeId,
               selectedEdgeId: latestDraftRef.current.selectedEdgeId,
             })
@@ -647,6 +634,10 @@ export function InteractionRulePage() {
   };
 
   const handleAddNode = (type: RuleNodeType, position?: { x: number; y: number }) => {
+    if (type === "trigger" && graphModel.nodes.some((node) => node.type === "trigger")) {
+      messageApi.warning("一条规则有且只有一个触发器节点。");
+      return;
+    }
     const nextNode = createDefaultRuleNode(type, position ?? { x: 120, y: 120 + graphModel.nodes.length * 48 });
     dispatch(addRuleNode(nextNode));
     dispatch(markRuleGraphDirty(true));

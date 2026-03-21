@@ -374,6 +374,17 @@ public class InteractionRuleDefinition extends AggregateRoot<Long> {
     ) {
         List<?> rawNodes = readList(graphPayload, "nodes");
         List<?> rawEdges = readList(graphPayload, "edges");
+        long triggerCount = rawNodes.stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .filter(node -> "trigger".equals(readString(node, "type", "")))
+            .count();
+
+        if (triggerCount == 0) {
+            diagnostics.add(RuleValidationDiagnostic.error("trigger_missing", "规则图至少需要一个触发器节点"));
+        } else if (triggerCount > 1) {
+            diagnostics.add(RuleValidationDiagnostic.error("trigger_multiple", "一条规则有且只有一个触发器节点"));
+        }
 
         Map<String, String> nodeTypesById = new HashMap<>();
         rawNodes.stream()

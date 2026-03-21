@@ -1,7 +1,6 @@
 import type {
   CompiledInteractionStep,
   CompiledInteractionRule,
-  InteractionEventType,
 } from "../../../store/slices/interactionRuleDraftSlice";
 import type {
   InteractionRuleGraphState,
@@ -11,8 +10,9 @@ import type {
   RuleReferenceSummary,
 } from "../../../store/slices/interactionRuleGraphSlice";
 import type { RuleFormFieldOption } from "./interactionRuleFormFields";
+import { isInteractionEventType } from "./interactionRuleEvents";
 
-function resolveTriggerScope(eventType: InteractionEventType): CompiledInteractionRule["triggerScope"] {
+function resolveTriggerScope(eventType: CompiledInteractionRule["eventType"]): CompiledInteractionRule["triggerScope"] {
   switch (eventType) {
     case "FIELD_CHANGE_MAIN":
       return "MAIN_FIELD";
@@ -26,6 +26,10 @@ function resolveTriggerScope(eventType: InteractionEventType): CompiledInteracti
     default:
       return "GLOBAL";
   }
+}
+
+function requiresTriggerTarget(eventType: CompiledInteractionRule["eventType"]) {
+  return eventType === "FIELD_CHANGE_MAIN" || eventType === "FIELD_CHANGE_DETAIL";
 }
 
 function collectReferenceValues(nodes: RuleGraphNode[], key: string) {
@@ -48,6 +52,14 @@ function readTriggerTarget(node: RuleGraphNode | undefined) {
     return undefined;
   }
   return collectNodeFieldReference(node, "triggerTarget") ?? collectNodeFieldReference(node, "targetField") ?? undefined;
+}
+
+function readTriggerEventType(node: RuleGraphNode | undefined) {
+  if (!node) {
+    return null;
+  }
+  const value = node.data.eventType;
+  return isInteractionEventType(value) ? value : null;
 }
 
 function isKnownFieldPath(value: unknown, availableFieldKeys: Set<string>) {
@@ -129,7 +141,6 @@ function collectEdgeFieldReferences(edges: InteractionRuleGraphState["graph"]["e
 
 export function precompileInteractionRule(params: {
   ruleId: string;
-  eventType: InteractionEventType;
   priority: number;
   graphState: InteractionRuleGraphState;
   availableFieldKeys?: string[];
@@ -155,9 +166,9 @@ export function precompileInteractionRule(params: {
   if (triggerNodes.length > 1) {
     diagnostics.push({
       id: "trigger_multiple",
-      level: "warning",
+      level: "error",
       code: "trigger_multiple",
-      message: "当前画布存在多个触发器，发布时将以第一个触发器为准。",
+      message: "一条规则有且只有一个触发器节点。",
     });
   }
   if (params.graphState.graph.nodes.filter((node) => node.type !== "trigger").length === 0) {
@@ -170,6 +181,7 @@ export function precompileInteractionRule(params: {
   }
 
   const triggerNode = triggerNodes[0];
+  const triggerEventType = readTriggerEventType(triggerNode);
   const { reachable, plan } = triggerNode
     ? buildStepPlan(params.graphState, triggerNode.id)
     : { reachable: new Set<string>(), plan: [] };
@@ -203,13 +215,22 @@ export function precompileInteractionRule(params: {
     const triggerTarget = readTriggerTarget(node);
     const outgoing = params.graphState.graph.edges.filter((edge) => edge.source === node.id);
 
-    if (node.type === "trigger" && !triggerTarget) {
+    if (node.type === "trigger" && readTriggerEventType(node) && requiresTriggerTarget(readTriggerEventType(node)! as CompiledInteractionRule["eventType"]) && !triggerTarget) {
       diagnostics.push({
         id: `trigger_target_invalid_${node.id}`,
         level: "error",
         nodeId: node.id,
         code: "trigger_target_invalid",
         message: "触发器节点必须选择触发目标字段。",
+      });
+    }
+    if (node.type === "trigger" && !readTriggerEventType(node)) {
+      diagnostics.push({
+        id: `trigger_event_type_invalid_${node.id}`,
+        level: "error",
+        nodeId: node.id,
+        code: "trigger_event_type_invalid",
+        message: "触发器节点必须选择触发事件。",
       });
     }
     if (
@@ -373,18 +394,21 @@ export function precompileInteractionRule(params: {
     ),
     detailTables: collectReferenceValues(params.graphState.graph.nodes, "detailTableKey"),
     forms: collectReferenceValues(params.graphState.graph.nodes, "formCode"),
-    events: [params.eventType],
+    events: triggerEventType ? [triggerEventType] : [],
   };
 
-  const triggerTarget = readTriggerTarget(triggerNode);
+  const triggerTarget =
+    triggerNode && triggerEventType && requiresTriggerTarget(triggerEventType)
+      ? readTriggerTarget(triggerNode)
+      : undefined;
   const compiledRule: CompiledInteractionRule | null =
     diagnostics.some((item) => item.level === "error") || !params.ruleId
       ? null
       : {
-          ruleId: params.ruleId,
-          eventType: params.eventType,
-          triggerScope: resolveTriggerScope(params.eventType),
-          triggerTarget,
+      ruleId: params.ruleId,
+      eventType: triggerEventType!,
+      triggerScope: resolveTriggerScope(triggerEventType!),
+      triggerTarget,
           priority: params.priority,
           steps: plan.map(
             (step, index): CompiledInteractionStep => ({

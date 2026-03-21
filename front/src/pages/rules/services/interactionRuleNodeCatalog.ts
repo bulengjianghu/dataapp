@@ -35,6 +35,7 @@ export function createDefaultRuleNode(type: RuleNodeType, position: { x: number;
   };
 
   if (type === "trigger") {
+    baseData.eventType = "FIELD_CHANGE_MAIN";
     baseData.triggerTarget = "";
   }
   if (type === "query" || type === "transform" || type === "context") {

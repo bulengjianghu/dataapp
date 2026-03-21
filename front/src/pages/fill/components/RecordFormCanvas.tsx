@@ -43,6 +43,17 @@ function getFieldKey(node: Node) {
   return typeof node.serverId === "string" ? node.serverId : "";
 }
 
+function normalizeNumberFieldValue(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 function isSelectFieldState(
   fieldState: RuntimeFieldState | undefined
 ): fieldState is Extract<RuntimeFieldState, { componentType: "select" | "radio" | "checkbox" }> {
@@ -95,7 +106,7 @@ function renderFieldInput(
     case "number":
       return (
         <InputNumber
-          value={typeof value === "number" ? value : undefined}
+          value={normalizeNumberFieldValue(value)}
           placeholder={placeholder}
           disabled={disabled}
           style={{ width: "100%" }}

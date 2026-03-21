@@ -2,7 +2,7 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 export type RuleNodeType =
   | "trigger"
-  | "condition"
+  | "branch"
   | "query"
   | "transform"
   | "command"
@@ -16,11 +16,30 @@ export type RuleGraphNode = {
   data: Record<string, unknown>;
 };
 
+export type RuleEdgeConditionOperator =
+  | "eq"
+  | "ne"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "contains"
+  | "isEmpty";
+
+export type RuleEdgeConditionItem = {
+  id: string;
+  fieldKey: string;
+  operator: RuleEdgeConditionOperator;
+  literalValue?: string;
+};
+
 export type RuleGraphEdge = {
   id: string;
   source: string;
   target: string;
-  branch?: "success" | "failure" | "true" | "false" | "empty" | "nonEmpty";
+  flowType?: "direct" | "condition";
+  conditionLogic?: "and" | "or";
+  conditions?: RuleEdgeConditionItem[];
 };
 
 export type RuleGraphDiagnostic = {

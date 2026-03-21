@@ -106,6 +106,59 @@ function isRelationFieldState(
   return fieldState?.componentType === "relation-select";
 }
 
+function getFieldRuntimeState(fieldPath: unknown, context: RuleExecutionContext) {
+  if (typeof fieldPath !== "string" || !fieldPath) {
+    return undefined;
+  }
+  const normalizedPath = normalizeFieldPath(fieldPath);
+  const isDetailField = fieldPath.startsWith("detail.");
+  if (isDetailField) {
+    const detailTableKey = typeof context.event.payload.detailTableKey === "string" ? context.event.payload.detailTableKey : "";
+    if (!detailTableKey) {
+      return undefined;
+    }
+    return context.runtimeState.componentState.detailTables[detailTableKey]?.columns[normalizedPath];
+  }
+  return context.runtimeState.componentState.fields[normalizedPath];
+}
+
+function buildComparableCandidates(value: unknown, fieldState: RuntimeFieldState | undefined) {
+  const candidates = new Set<unknown>([value]);
+  if (value == null || typeof value === "object") {
+    return candidates;
+  }
+
+  const normalizedValue = String(value);
+  let options: RuntimeOption[] = [];
+  if (fieldState && "select" in fieldState && fieldState.select?.options) {
+    options = fieldState.select.options;
+  } else if (isRelationFieldState(fieldState)) {
+    options = fieldState.relation.options;
+  }
+
+  options.forEach((option) => {
+    if (option.value === normalizedValue) {
+      candidates.add(option.label);
+    }
+    if (option.label === normalizedValue) {
+      candidates.add(option.value);
+    }
+  });
+
+  return candidates;
+}
+
+function isEqualWithFieldOptions(leftValue: unknown, rightValue: unknown, fieldState: RuntimeFieldState | undefined) {
+  const leftCandidates = buildComparableCandidates(leftValue, fieldState);
+  const rightCandidates = buildComparableCandidates(rightValue, fieldState);
+  for (const candidate of leftCandidates) {
+    if (rightCandidates.has(candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function readFieldState(component: string, props: Record<string, unknown>): RuntimeFieldState {
   const baseState = {
     componentType: component,
@@ -404,7 +457,7 @@ async function executeQueryStep(
   const saveAs = typeof data.saveAs === "string" ? data.saveAs : "";
   if (!saveAs) {
     return {
-      nextNodeId: resolveNextTarget(step, "success"),
+      nextNodeId: resolveNextTarget(step),
       outputSummary: "query 未配置 saveAs，已跳过",
     };
   }
@@ -413,7 +466,7 @@ async function executeQueryStep(
     const sourceFormId = Number(resolveRuntimeValue(data.sourceFormId ?? data.formId, context) ?? data.sourceFormId);
     if (!sourceFormId) {
       return {
-        nextNodeId: resolveNextTarget(step, "failure"),
+        nextNodeId: undefined,
         outputSummary: "query 缺少 sourceFormId",
       };
     }
@@ -422,7 +475,7 @@ async function executeQueryStep(
     if (cached && cached.expiresAt > Date.now()) {
       writeTempValue(context, saveAs, cached.data);
       return {
-        nextNodeId: resolveNextTarget(step, "success"),
+        nextNodeId: resolveNextTarget(step),
         outputSummary: `命中缓存 ${saveAs}`,
       };
     }
@@ -451,7 +504,7 @@ async function executeQueryStep(
     writeTempValue(context, saveAs, result.records);
     dispatch(setQueryCache({ key: cacheKey, data: result.records, expiresAt: Date.now() + 60_000 }));
     return {
-      nextNodeId: resolveNextTarget(step, "success"),
+      nextNodeId: resolveNextTarget(step),
       outputSummary: `查询返回 ${result.records.length} 条记录`,
     };
   }
@@ -466,7 +519,7 @@ async function executeQueryStep(
     const rows = detailTableKey ? context.runtimeState.data.detailTables[detailTableKey] ?? [] : [];
     writeTempValue(context, saveAs, rows);
     return {
-      nextNodeId: resolveNextTarget(step, "success"),
+      nextNodeId: resolveNextTarget(step),
       outputSummary: `读取明细 ${detailTableKey || "-"} ${rows.length} 行`,
     };
   }
@@ -474,7 +527,7 @@ async function executeQueryStep(
   const fallbackValue = resolveRuntimeValue(data.valueFrom ?? data.fieldKey ?? data.targetField, context) ?? data.literalValue;
   writeTempValue(context, saveAs, fallbackValue);
   return {
-    nextNodeId: resolveNextTarget(step, "success"),
+    nextNodeId: resolveNextTarget(step),
     outputSummary: `写入临时变量 ${saveAs}`,
   };
 }
@@ -484,7 +537,7 @@ function executeTransformStep(step: Record<string, unknown>, context: RuleExecut
   const saveAs = typeof data.output === "string" && data.output.trim() ? data.output : typeof data.saveAs === "string" ? data.saveAs : "";
   if (!saveAs) {
     return {
-      nextNodeId: resolveNextTarget(step, "success"),
+      nextNodeId: resolveNextTarget(step),
       outputSummary: "transform 未配置 output/saveAs，已跳过",
     };
   }
@@ -579,7 +632,7 @@ function executeTransformStep(step: Record<string, unknown>, context: RuleExecut
 
   writeTempValue(context, saveAs, output);
   return {
-    nextNodeId: resolveNextTarget(step, "success"),
+    nextNodeId: resolveNextTarget(step),
     outputSummary: `输出变量 ${saveAs}`,
   };
 }
@@ -597,69 +650,89 @@ function matchRule(rule: InteractionRuntimeRule, event: RuntimeEvent) {
   return rule.triggerTarget === event.target || normalizeFieldPath(rule.triggerTarget) === normalizeFieldPath(event.target);
 }
 
-function resolveNextTarget(
-  step: Record<string, unknown>,
-  branch: "success" | "failure" | "true" | "false" | "empty" | "nonEmpty" = "success"
-) {
+function resolveNextTarget(step: Record<string, unknown>) {
   const next = Array.isArray(step.next) ? step.next : [];
   const matched = next.find(
-    (item): item is { target?: unknown; branch?: unknown } =>
-      typeof item === "object" && item !== null && (item.branch === branch || (branch === "success" && item.branch == null))
+    (item): item is { target?: unknown; flowType?: unknown } =>
+      typeof item === "object" &&
+      item !== null &&
+      (((item as { flowType?: unknown }).flowType ?? "direct") === "direct")
   );
   if (typeof matched?.target === "string" && matched.target) {
     return matched.target;
   }
-  if (branch !== "success") {
-    const fallback = next.find(
-      (item): item is { target?: unknown } => typeof item === "object" && item !== null && item.branch === "success"
-    );
-    if (typeof fallback?.target === "string" && fallback.target) {
-      return fallback.target;
-    }
-  }
   return undefined;
 }
 
-function executeConditionStep(step: Record<string, unknown>, context: RuleExecutionContext) {
-  const data = typeof step.data === "object" && step.data ? (step.data as Record<string, unknown>) : {};
-  const leftValue = resolveRuntimeValue(data.leftOperand ?? data.fieldKey, context);
-  const rightValue = data.rightOperand ?? data.expectedValue ?? data.literalValue ?? data.value;
-  const operator = typeof data.operator === "string" ? data.operator : "eq";
+function evaluateComparison(
+  fieldPath: unknown,
+  operator: string,
+  rightValue: unknown,
+  context: RuleExecutionContext
+) {
+  const leftValue = resolveRuntimeValue(fieldPath, context);
+  const fieldState = getFieldRuntimeState(fieldPath, context);
 
-  let matched = false;
   switch (operator) {
     case "isEmpty":
-      matched = leftValue === undefined || leftValue === null || leftValue === "";
-      break;
+      return leftValue === undefined || leftValue === null || leftValue === "";
     case "ne":
-      matched = leftValue !== rightValue;
-      break;
+      return !isEqualWithFieldOptions(leftValue, rightValue, fieldState);
     case "contains":
-      matched = Array.isArray(leftValue)
+      return Array.isArray(leftValue)
         ? leftValue.includes(rightValue)
         : String(leftValue ?? "").includes(String(rightValue ?? ""));
-      break;
     case "gt":
-      matched = Number(leftValue ?? 0) > Number(rightValue ?? 0);
-      break;
+      return Number(leftValue ?? 0) > Number(rightValue ?? 0);
     case "gte":
-      matched = Number(leftValue ?? 0) >= Number(rightValue ?? 0);
-      break;
+      return Number(leftValue ?? 0) >= Number(rightValue ?? 0);
     case "lt":
-      matched = Number(leftValue ?? 0) < Number(rightValue ?? 0);
-      break;
+      return Number(leftValue ?? 0) < Number(rightValue ?? 0);
     case "lte":
-      matched = Number(leftValue ?? 0) <= Number(rightValue ?? 0);
-      break;
+      return Number(leftValue ?? 0) <= Number(rightValue ?? 0);
     case "eq":
     default:
-      matched = leftValue === rightValue;
-      break;
+      return isEqualWithFieldOptions(leftValue, rightValue, fieldState);
   }
+}
+
+function evaluateBranchEdge(
+  edge: Record<string, unknown>,
+  context: RuleExecutionContext
+) {
+  const flowType = edge.flowType === "condition" ? "condition" : "direct";
+  if (flowType === "direct") {
+    return true;
+  }
+  const conditions = Array.isArray(edge.conditions)
+    ? edge.conditions.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    : [];
+  if (conditions.length === 0) {
+    return false;
+  }
+  const logic = edge.conditionLogic === "or" ? "or" : "and";
+  const results = conditions.map((condition) =>
+    evaluateComparison(
+      condition.leftOperand ?? condition.fieldKey,
+      typeof condition.operator === "string" ? condition.operator : "eq",
+      condition.rightOperand ?? condition.expectedValue ?? condition.literalValue ?? condition.value,
+      context
+    )
+  );
+  return logic === "or" ? results.some(Boolean) : results.every(Boolean);
+}
+
+function executeBranchStep(step: Record<string, unknown>, context: RuleExecutionContext) {
+  const next = Array.isArray(step.next) ? step.next : [];
+  const nextNodeIds = next
+    .filter((edge): edge is Record<string, unknown> => typeof edge === "object" && edge !== null)
+    .filter((edge) => evaluateBranchEdge(edge, context))
+    .map((edge) => edge.target)
+    .filter((target): target is string => typeof target === "string" && target.length > 0);
 
   return {
-    nextNodeId: resolveNextTarget(step, matched ? "true" : "false"),
-    outputSummary: matched ? "条件命中" : "条件未命中",
+    nextNodeIds,
+    outputSummary: nextNodeIds.length > 0 ? `命中 ${nextNodeIds.length} 条分流边` : "未命中任何分流边",
   };
 }
 
@@ -682,14 +755,14 @@ function executeContextLikeStep(
 
   if (!saveAs) {
     return {
-      nextNodeId: resolveNextTarget(step, "success"),
+      nextNodeId: resolveNextTarget(step),
       outputSummary: `${stepLabel} 未配置 saveAs，已跳过`,
     };
   }
 
   writeTempValue(context, saveAs, resolvedValue);
   return {
-    nextNodeId: resolveNextTarget(step, "success"),
+    nextNodeId: resolveNextTarget(step),
     outputSummary: `写入临时变量 ${saveAs}`,
   };
 }
@@ -750,14 +823,14 @@ function executeCommandStep(
 
   if (!commandType || !target) {
     return {
-      nextNodeId: resolveNextTarget(step, "failure"),
+      nextNodeId: undefined,
       commands: [],
       outputSummary: "命令缺少目标字段或命令类型",
     };
   }
 
   return {
-    nextNodeId: resolveNextTarget(step, "success"),
+    nextNodeId: resolveNextTarget(step),
     commands: [
       {
         commandType,
@@ -770,6 +843,35 @@ function executeCommandStep(
   };
 }
 
+function resolveTargetFieldState(state: RootState["interactionRuntime"], target: RuntimeCommandTarget) {
+  if (target.targetType === "detail_field" && target.detailTableKey && target.fieldKey) {
+    return state.componentState.detailTables[target.detailTableKey]?.columns[target.fieldKey];
+  }
+  if (target.fieldKey) {
+    return state.componentState.fields[target.fieldKey];
+  }
+  return undefined;
+}
+
+function normalizeValueByFieldState(value: unknown, fieldState: RuntimeFieldState | undefined) {
+  if (!fieldState) {
+    return value;
+  }
+  if (fieldState.componentType === "number") {
+    if (value === undefined || value === null || value === "") {
+      return undefined;
+    }
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : undefined;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : value;
+    }
+  }
+  return value;
+}
+
 function dispatchRuntimeCommand(
   dispatch: AppDispatch,
   getState: () => RootState,
@@ -777,6 +879,7 @@ function dispatchRuntimeCommand(
 ) {
   const { target } = command;
   const state = getState();
+  const normalizedFieldValue = normalizeValueByFieldState(command.value, resolveTargetFieldState(state.interactionRuntime, target));
 
   switch (command.commandType) {
     case "setVisible":
@@ -934,9 +1037,16 @@ function dispatchRuntimeCommand(
     case "setValue":
     default:
       if (target.targetType === "detail_field" && target.detailTableKey && target.rowId && target.fieldKey) {
-        dispatch(setDetailFieldValue({ detailTableKey: target.detailTableKey, rowId: target.rowId, fieldKey: target.fieldKey, value: command.value }));
+        dispatch(
+          setDetailFieldValue({
+            detailTableKey: target.detailTableKey,
+            rowId: target.rowId,
+            fieldKey: target.fieldKey,
+            value: normalizedFieldValue,
+          })
+        );
       } else if (target.fieldKey) {
-        dispatch(setMainFieldValue({ fieldKey: target.fieldKey, value: command.value }));
+        dispatch(setMainFieldValue({ fieldKey: target.fieldKey, value: normalizedFieldValue }));
       }
       break;
   }
@@ -964,7 +1074,7 @@ function dispatchRuntimeCommand(
   if (target.fieldKey) {
     dispatch(
       enqueueRuntimeEvent(
-        createMainFieldChangeRuntimeEvent(target.fieldKey, nextState.data.mainData[target.fieldKey] ?? command.value, "rule")
+        createMainFieldChangeRuntimeEvent(target.fieldKey, nextState.data.mainData[target.fieldKey] ?? normalizedFieldValue, "rule")
       )
     );
   }
@@ -1005,43 +1115,69 @@ export async function processNextRuntimeEvent(params: {
         runtimeState: getState().interactionRuntime,
       };
 
-      let currentStep: Record<string, unknown> | undefined = steps[0];
-      while (currentStep) {
+      const startSteps = steps.filter((step) => {
+        const stepId = typeof step.id === "string" ? step.id : "";
+        return !steps.some((candidate) =>
+          Array.isArray(candidate.next) &&
+          candidate.next.some(
+            (edge) =>
+              typeof edge === "object" &&
+              edge !== null &&
+              typeof (edge as { target?: unknown }).target === "string" &&
+              (edge as { target?: string }).target === stepId
+          )
+        );
+      });
+      const executionQueue = [...(startSteps.length > 0 ? startSteps : steps.slice(0, 1))];
+      const executedNodes = new Set<string>();
+
+      while (executionQueue.length > 0) {
+        const currentStep = executionQueue.shift();
+        if (!currentStep) {
+          continue;
+        }
         context.runtimeState = getState().interactionRuntime;
         const stepId = typeof currentStep.id === "string" ? currentStep.id : "";
+        if (stepId && executedNodes.has(stepId)) {
+          continue;
+        }
+        if (stepId) {
+          executedNodes.add(stepId);
+        }
         const stepType = typeof currentStep.type === "string" ? currentStep.type : "notice";
         const inputSummary =
           typeof currentStep.data === "object" && currentStep.data
             ? JSON.stringify(currentStep.data)
             : undefined;
 
-        let nextNodeId: string | undefined;
+        let nextNodeIds: string[] = [];
         let outputSummary = "已执行";
         let commands: RuntimeCommand[] = [];
 
-        if (stepType === "condition") {
-          const result = executeConditionStep(currentStep, context);
-          nextNodeId = result.nextNodeId;
+        if (stepType === "branch") {
+          const result = executeBranchStep(currentStep, context);
+          nextNodeIds = result.nextNodeIds;
           outputSummary = result.outputSummary;
         } else if (stepType === "context") {
           const result = executeContextLikeStep(currentStep, context, "context");
-          nextNodeId = result.nextNodeId;
+          nextNodeIds = result.nextNodeId ? [result.nextNodeId] : [];
           outputSummary = result.outputSummary;
         } else if (stepType === "query") {
           const result = await executeQueryStep(currentStep, context, getState, dispatch);
-          nextNodeId = result.nextNodeId;
+          nextNodeIds = result.nextNodeId ? [result.nextNodeId] : [];
           outputSummary = result.outputSummary;
         } else if (stepType === "transform") {
           const result = executeTransformStep(currentStep, context);
-          nextNodeId = result.nextNodeId;
+          nextNodeIds = result.nextNodeId ? [result.nextNodeId] : [];
           outputSummary = result.outputSummary;
         } else if (stepType === "command") {
           const result = executeCommandStep(currentStep, context);
-          nextNodeId = result.nextNodeId;
+          nextNodeIds = result.nextNodeId ? [result.nextNodeId] : [];
           outputSummary = result.outputSummary;
           commands = result.commands;
         } else {
-          nextNodeId = resolveNextTarget(currentStep, "success");
+          const nextNodeId = resolveNextTarget(currentStep);
+          nextNodeIds = nextNodeId ? [nextNodeId] : [];
         }
 
         dispatch(
@@ -1049,7 +1185,7 @@ export async function processNextRuntimeEvent(params: {
             executionId,
             ruleId: String(rule.ruleId),
             nodeId: stepId,
-            nodeType: stepType as "trigger" | "condition" | "query" | "transform" | "command" | "context" | "notice",
+            nodeType: stepType as import("../../../store/slices/interactionRuleGraphSlice").RuleNodeType,
             status: "success",
             inputSummary,
             outputSummary,
@@ -1063,7 +1199,12 @@ export async function processNextRuntimeEvent(params: {
           context.runtimeState = getState().interactionRuntime;
         });
 
-        currentStep = nextNodeId ? stepsById.get(nextNodeId) : undefined;
+        nextNodeIds
+          .map((nextNodeId) => stepsById.get(nextNodeId))
+          .filter((step): step is Record<string, unknown> => Boolean(step))
+          .forEach((step) => {
+            executionQueue.push(step);
+          });
       }
 
       dispatch(finishRuleExecution({ executionId, status: "success" }));

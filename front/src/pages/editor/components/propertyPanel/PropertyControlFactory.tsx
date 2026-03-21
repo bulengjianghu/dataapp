@@ -1,4 +1,5 @@
 import { Input, InputNumber, Select, Switch } from "antd";
+import { useEffect, useState } from "react";
 import type { Node } from "../../../../types/schema/node";
 import type { PropertyFieldSchema } from "../nodes";
 import {
@@ -70,6 +71,40 @@ function formatOptions(value: unknown) {
     .join("\n");
 }
 
+function SerializedTextarea({
+  value,
+  rows,
+  placeholder,
+  formatter,
+  parser,
+  onCommit,
+}: {
+  value: unknown;
+  rows: number;
+  placeholder?: string;
+  formatter: (value: unknown) => string;
+  parser: (raw: string) => unknown;
+  onCommit: (value: unknown) => void;
+}) {
+  const [draftValue, setDraftValue] = useState(() => formatter(value));
+
+  useEffect(() => {
+    setDraftValue(formatter(value));
+  }, [formatter, value]);
+
+  return (
+    <Input.TextArea
+      rows={rows}
+      placeholder={placeholder}
+      value={draftValue}
+      onChange={(event) => setDraftValue(event.target.value)}
+      onBlur={() => {
+        onCommit(parser(draftValue));
+      }}
+    />
+  );
+}
+
 export function PropertyControlFactory({
   node,
   field,
@@ -129,22 +164,26 @@ export function PropertyControlFactory({
 
   if (field.control === "options") {
     return (
-      <Input.TextArea
+      <SerializedTextarea
         rows={6}
         placeholder={field.placeholder}
-        value={formatOptions(value)}
-        onChange={(event) => onChange(serializeOptions(event.target.value))}
+        value={value}
+        formatter={formatOptions}
+        parser={serializeOptions}
+        onCommit={onChange}
       />
     );
   }
 
   if (field.control === "string-list") {
     return (
-      <Input.TextArea
+      <SerializedTextarea
         rows={6}
         placeholder={field.placeholder}
-        value={formatStringList(value)}
-        onChange={(event) => onChange(serializeStringList(event.target.value))}
+        value={value}
+        formatter={formatStringList}
+        parser={serializeStringList}
+        onCommit={onChange}
       />
     );
   }

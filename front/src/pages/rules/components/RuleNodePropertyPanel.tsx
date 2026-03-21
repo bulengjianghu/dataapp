@@ -1,4 +1,4 @@
-import { Card, Empty, Input, Select, Space, Typography } from "antd";
+import { Card, Empty, Input, Select, Space, Typography, Alert } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useAppDispatch } from "../../../store/hooks";
 import {
@@ -14,26 +14,6 @@ type RuleNodePropertyPanelProps = {
   graphState: InteractionRuleGraphState;
   embedded?: boolean;
 };
-
-const BRANCH_OPTIONS = [
-  { label: "默认成功", value: "success" },
-  { label: "失败分支", value: "failure" },
-  { label: "条件为真", value: "true" },
-  { label: "条件为假", value: "false" },
-  { label: "为空", value: "empty" },
-  { label: "非空", value: "nonEmpty" },
-];
-
-const CONDITION_OPERATOR_OPTIONS = [
-  { label: "等于", value: "eq" },
-  { label: "不等于", value: "ne" },
-  { label: "大于", value: "gt" },
-  { label: "大于等于", value: "gte" },
-  { label: "小于", value: "lt" },
-  { label: "小于等于", value: "lte" },
-  { label: "包含", value: "contains" },
-  { label: "为空", value: "isEmpty" },
-];
 
 const COMMAND_OPTIONS = [
   { label: "设置值", value: "setValue" },
@@ -83,20 +63,12 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
     [fieldSelectOptions]
   );
   const showFieldReference =
-    selectedNode?.type === "condition" ||
     selectedNode?.type === "query" ||
     selectedNode?.type === "transform" ||
     selectedNode?.type === "context";
   const showTriggerTarget = selectedNode?.type === "trigger";
   const showCommandConfig = selectedNode?.type === "command";
   const showContextConfig = selectedNode?.type === "context";
-  const showBranchSelector =
-    selectedNode?.type === "condition" ||
-    selectedNode?.type === "query" ||
-    selectedNode?.type === "transform" ||
-    selectedNode?.type === "context" ||
-    selectedNode?.type === "notice";
-
   if (!selectedNode) {
     const empty = <Empty description="请选择一个节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
     if (embedded) {
@@ -151,29 +123,14 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
           )}
         </div>
       ) : null}
-      {selectedNode.type === "condition" ? (
+      {selectedNode.type === "branch" ? (
         <>
-          <div>
-            <Typography.Text type="secondary">条件运算符</Typography.Text>
-            <Select
-              value={typeof selectedNode.data.operator === "string" ? selectedNode.data.operator : "eq"}
-              options={CONDITION_OPERATOR_OPTIONS}
-              onChange={(value) =>
-                dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { operator: value } }))
-              }
-              style={{ width: "100%" }}
-            />
-          </div>
-          <div>
-            <Typography.Text type="secondary">比较值</Typography.Text>
-            <Input
-              value={String(selectedNode.data.literalValue ?? "")}
-              onChange={(event) =>
-                dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { literalValue: event.target.value } }))
-              }
-              placeholder="例如 yes / 100 / true"
-            />
-          </div>
+          <Alert
+            type="info"
+            showIcon
+            message="分流节点只负责分流"
+            description="具体判断条件配置在每条条件流转连线上。直接流转边会无条件进入后续子链。"
+          />
         </>
       ) : null}
       {showTriggerTarget ? (
@@ -317,19 +274,6 @@ export function RuleNodePropertyPanel({ graphState, embedded = false }: RuleNode
             />
           </div>
         </>
-      ) : null}
-      {showBranchSelector ? (
-        <div>
-          <Typography.Text type="secondary">默认分支标签</Typography.Text>
-          <Select
-            value={typeof selectedNode.data.branch === "string" ? selectedNode.data.branch : "success"}
-            options={BRANCH_OPTIONS}
-            onChange={(value) =>
-              dispatch(updateRuleNodeData({ nodeId: selectedNode.id, patch: { branch: value } }))
-            }
-            style={{ width: "100%" }}
-          />
-        </div>
       ) : null}
     </Space>
   );

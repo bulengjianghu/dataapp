@@ -19,7 +19,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { DeleteOutlined } from "@ant-design/icons";
-import { Button, Empty, Popconfirm, message } from "antd";
+import { Button, Empty, Popconfirm, Tooltip, message } from "antd";
 import { useMemo } from "react";
 import type { AppDispatch } from "../../../store";
 import {
@@ -45,7 +45,7 @@ type RuleGraphCanvasProps = {
 
 const nodeTypes: NodeTypes = {
   trigger: RuleNodeCard,
-  condition: RuleNodeCard,
+  branch: RuleNodeCard,
   query: RuleNodeCard,
   transform: RuleNodeCard,
   command: RuleNodeCard,
@@ -65,7 +65,7 @@ function RuleEdgeCard({
   style,
   selected,
   data,
-}: EdgeProps<Edge<{ branch?: string; onDelete?: () => void }>>) {
+}: EdgeProps<Edge<{ flowType?: string; order?: number; showOrder?: boolean; onDelete?: () => void }>>) {
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -78,6 +78,20 @@ function RuleEdgeCard({
   return (
     <>
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      {data?.showOrder && typeof data.order === "number" ? (
+        <EdgeLabelRenderer>
+          <Tooltip title={`分流顺序 ${data.order}，运行时会按该顺序检查并进入后续子链。`}>
+            <div
+              className="rule-graph-edge__order"
+              style={{
+                transform: `translate(-50%, -50%) translate(${targetX - 18}px, ${targetY}px)`,
+              }}
+            >
+              {data.order}
+            </div>
+          </Tooltip>
+        </EdgeLabelRenderer>
+      ) : null}
       {selected && data?.onDelete ? (
         <EdgeLabelRenderer>
           <div
@@ -142,24 +156,35 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
 
   const edges = useMemo<Edge[]>(
     () =>
-      graphState.graph.edges.map((edge) => ({
+      graphState.graph.edges.map((edge) => {
+        const sourceNode = graphState.graph.nodes.find((node) => node.id === edge.source);
+        const sourceOutgoingEdges = graphState.graph.edges.filter((item) => item.source === edge.source);
+        const branchOrder =
+          sourceNode?.type === "branch" ? sourceOutgoingEdges.findIndex((item) => item.id === edge.id) + 1 : undefined;
+
+        return {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        label: edge.branch && edge.branch !== "success" ? edge.branch : undefined,
+        label: edge.flowType === "condition" ? "条件流转" : edge.flowType === "direct" ? "直接流转" : undefined,
         type: "ruleEdge",
         data: {
-          branch: edge.branch,
+          flowType: edge.flowType,
+          order: branchOrder,
+          showOrder: sourceNode?.type === "branch",
           onDelete: () => dispatch(removeRuleEdge(edge.id)),
         },
-        animated: edge.branch === "failure",
-        style: edge.branch === "failure" ? { stroke: "#ff4d4f" } : undefined,
+        animated: edge.flowType === "condition",
+        style: edge.flowType === "condition" ? { stroke: "#faad14" } : undefined,
         selected: edge.id === graphState.selectedEdgeId,
-      })),
-    [dispatch, graphState.graph.edges, graphState.selectedEdgeId]
+      };
+      }),
+    [dispatch, graphState.graph.edges, graphState.graph.nodes, graphState.selectedEdgeId]
   );
 
   const findNodeById = (nodeId: string) => graphState.graph.nodes.find((item) => item.id === nodeId) ?? null;
+  const findOutgoingEdges = (nodeId: string) =>
+    graphState.graph.edges.filter((edge) => edge.source === nodeId);
 
   const canConnect = (connection: Connection | Edge) => {
     if (!connection.source || !connection.target) {
@@ -174,6 +199,10 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
       return false;
     }
     if (targetNode.type === "trigger") {
+      return false;
+    }
+    const sourceOutgoingEdges = findOutgoingEdges(connection.source);
+    if (sourceNode.type !== "branch" && sourceOutgoingEdges.length >= 1) {
       return false;
     }
     return !graphState.graph.edges.some(
@@ -205,12 +234,15 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
       messageApi.warning("当前连线不合法，请检查起点、终点和重复连线。");
       return;
     }
+    const sourceNode = findNodeById(connection.source);
     dispatch(
       connectRuleNodes({
         id: `edge_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
         source: connection.source,
         target: connection.target,
-        branch: "success",
+        flowType: sourceNode?.type === "branch" ? "condition" : "direct",
+        conditionLogic: "and",
+        conditions: [],
       })
     );
   };
@@ -226,7 +258,7 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
       const value = event.dataTransfer.getData(mimeType);
       if (
         value === "trigger" ||
-        value === "condition" ||
+        value === "branch" ||
         value === "query" ||
         value === "transform" ||
         value === "command" ||
@@ -259,7 +291,7 @@ function CanvasSurface({ graphState, dispatch, onDropNode }: RuleGraphCanvasProp
       {graphState.graph.nodes.length === 0 ? (
         <div className="rule-graph-canvas__empty">
           <Empty
-            description="从左侧拖入触发器、条件或命令节点开始编排"
+            description="从左侧拖入触发器、分流或命令节点开始编排"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </div>

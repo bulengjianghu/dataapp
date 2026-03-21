@@ -625,6 +625,28 @@
   z-index: 6;
 }
 
+.rule-graph-edge__order {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fa8c16, #fa541c);
+  box-shadow:
+    0 8px 18px rgba(250, 84, 28, 0.28),
+    0 0 0 1px rgba(250, 140, 22, 0.28);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: all;
+  cursor: help;
+}
+
 .rule-graph-node__body {
   margin: 0 !important;
   color: #667085;

@@ -5,6 +5,11 @@ export type RuleFormFieldOption = {
   label: string;
   value: string;
   scopeLabel: string;
+  component?: string;
+  options?: Array<{
+    label: string;
+    value: string;
+  }>;
 };
 
 function isFieldNode(node: Node) {
@@ -46,10 +51,26 @@ export function buildInteractionRuleFieldOptions(nodesById: NodesById) {
         ? `detail.${typeof detailTable.serverId === "string" && detailTable.serverId.trim() ? detailTable.serverId.trim() : detailTable.id}.${serverId}`
         : `main.${serverId}`;
       const scopeLabel = detailTable ? `明细表 / ${getNodeLabel(detailTable)}` : "主表";
+      const component = typeof node.props.component === "string" ? node.props.component : undefined;
+      const options =
+        Array.isArray(node.props.options) && (
+          component === "select" ||
+          component === "radio" ||
+          component === "checkbox"
+        )
+          ? node.props.options
+              .filter((item): item is { label?: unknown; value?: unknown } => typeof item === "object" && item !== null)
+              .map((item) => ({
+                label: typeof item.label === "string" ? item.label : String(item.value ?? ""),
+                value: String(item.value ?? ""),
+              }))
+          : undefined;
       return {
         label: `${getNodeLabel(node)} (${path})`,
         value: path,
         scopeLabel,
+        component,
+        options,
       } satisfies RuleFormFieldOption;
     })
     .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));

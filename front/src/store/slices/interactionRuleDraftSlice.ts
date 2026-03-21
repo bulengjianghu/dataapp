@@ -1,5 +1,8 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import type { RuleNodeType } from "./interactionRuleGraphSlice";
+import type {
+  RuleEdgeConditionItem,
+  RuleNodeType,
+} from "./interactionRuleGraphSlice";
 
 export type InteractionEventType =
   | "FIELD_CHANGE_MAIN"
@@ -40,7 +43,9 @@ export type CompiledInteractionStep = {
   data: Record<string, unknown>;
   next?: Array<{
     target: string;
-    branch?: "success" | "failure" | "true" | "false" | "empty" | "nonEmpty";
+    flowType?: "direct" | "condition";
+    conditionLogic?: "and" | "or";
+    conditions?: RuleEdgeConditionItem[];
   }>;
 };
 

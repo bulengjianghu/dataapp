@@ -62,7 +62,7 @@ import {
   RULE_NODE_PALETTE_ITEMS,
 } from "./services/interactionRuleNodeCatalog";
 import { precompileInteractionRule } from "./services/interactionRuleCompiler";
-import { loadInteractionRuleFieldOptions } from "./services/interactionRuleFormFields";
+import { loadInteractionRuleFieldOptions, type RuleFormFieldOption } from "./services/interactionRuleFormFields";
 import { layoutInteractionRuleGraph } from "./services/interactionRuleLayout";
 import {
   loadInteractionRuleDraftFromServer,
@@ -137,22 +137,28 @@ function normalizeGraphPayload(payload: Record<string, unknown> | undefined) {
   const rawEdges = Array.isArray(payload?.edges) ? payload.edges : [];
   const rawViewport = payload?.viewport;
   return {
-    nodes: rawNodes as RuleGraphNode[],
+    nodes: rawNodes.map((item) => {
+      const node = item as RuleGraphNode;
+      const legacyType = typeof (item as { type?: unknown }).type === "string" ? String((item as { type?: unknown }).type) : "";
+      return {
+        ...node,
+        type: (legacyType === "condition" ? "branch" : legacyType) as RuleGraphNode["type"],
+      } as RuleGraphNode;
+    }),
     edges: rawEdges.map((item) => {
       const edge = item as Record<string, unknown>;
       return {
         id: String(edge.id ?? `edge_${Date.now()}`),
         source: String(edge.source ?? ""),
         target: String(edge.target ?? ""),
-        branch:
-          edge.branch === "success" ||
-          edge.branch === "failure" ||
-          edge.branch === "true" ||
-          edge.branch === "false" ||
-          edge.branch === "empty" ||
-          edge.branch === "nonEmpty"
-            ? edge.branch
-            : undefined,
+        flowType:
+          edge.flowType === "direct" || edge.flowType === "condition"
+            ? edge.flowType
+            : edge.branch === "success" || edge.branch == null
+              ? "direct"
+              : "condition",
+        conditionLogic: edge.conditionLogic === "or" ? "or" : "and",
+        conditions: Array.isArray(edge.conditions) ? edge.conditions : [],
       } satisfies RuleGraphEdge;
     }),
     viewport:
@@ -331,6 +337,7 @@ export function InteractionRulePage() {
   const [persistedFingerprint, setPersistedFingerprint] = useState<string | null>(null);
   const [autoSavePending, setAutoSavePending] = useState(false);
   const [availableFieldKeys, setAvailableFieldKeys] = useState<string[]>([]);
+  const [availableFields, setAvailableFields] = useState<RuleFormFieldOption[]>([]);
   const hasCanvasErrors = graphState.diagnostics.some((item) => item.level === "error");
   const ruleDisplayName = ruleDraft.meta.ruleName || "未命名规则";
   const currentFingerprint = useMemo(
@@ -443,6 +450,7 @@ export function InteractionRulePage() {
   useEffect(() => {
     if (!formId) {
       setAvailableFieldKeys([]);
+      setAvailableFields([]);
       return;
     }
 
@@ -450,11 +458,13 @@ export function InteractionRulePage() {
     void loadInteractionRuleFieldOptions(formId)
       .then((options) => {
         if (!cancelled) {
+          setAvailableFields(options);
           setAvailableFieldKeys(options.map((item) => item.value));
         }
       })
       .catch(() => {
         if (!cancelled) {
+          setAvailableFields([]);
           setAvailableFieldKeys([]);
         }
       });
@@ -477,6 +487,7 @@ export function InteractionRulePage() {
         graph: graphModel,
       },
       availableFieldKeys,
+      availableFields,
     });
     dispatch(setRuleDiagnostics(compiled.diagnostics));
     dispatch(setRuleReferences(compiled.references));
@@ -489,6 +500,7 @@ export function InteractionRulePage() {
     ruleDraft.meta.eventType,
     ruleDraft.meta.priority,
     ruleDraft.meta.ruleId,
+    availableFields,
     availableFieldKeys,
   ]);
 

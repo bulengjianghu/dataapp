@@ -13,9 +13,13 @@ import com.dataapp.shared.exception.ErrorCode;
 import com.dataapp.shared.kernel.model.AggregateRoot;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.time.OffsetDateTime;
 
 public class InteractionRuleDefinition extends AggregateRoot<Long> {
@@ -193,6 +197,9 @@ public class InteractionRuleDefinition extends AggregateRoot<Long> {
             diagnostics.add(RuleValidationDiagnostic.error("trigger_target_missing", "字段触发规则必须指定 triggerTarget"));
         }
 
+        validateGraphStructure(graphPayload, diagnostics);
+        validateCompiledStructure(compiledPayload, diagnostics);
+
         Map<String, Object> normalizedJson = new LinkedHashMap<>();
         normalizedJson.put("ruleId", id);
         normalizedJson.put("ruleCode", ruleCode);
@@ -358,6 +365,251 @@ public class InteractionRuleDefinition extends AggregateRoot<Long> {
     private String readString(Map<String, Object> payload, String key, String defaultValue) {
         Object value = payload.get(key);
         return value instanceof String text && !text.isBlank() ? text.trim() : defaultValue;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void validateGraphStructure(
+        Map<String, Object> graphPayload,
+        List<RuleValidationDiagnostic> diagnostics
+    ) {
+        List<?> rawNodes = readList(graphPayload, "nodes");
+        List<?> rawEdges = readList(graphPayload, "edges");
+
+        Map<String, String> nodeTypesById = new HashMap<>();
+        rawNodes.stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .forEach(node -> {
+                Object id = node.get("id");
+                Object type = node.get("type");
+                if (id instanceof String nodeId && type instanceof String nodeType && !nodeId.isBlank()) {
+                    nodeTypesById.put(nodeId, "condition".equals(nodeType) ? "branch" : nodeType);
+                }
+            });
+
+        Map<String, List<Map<String, Object>>> outgoingBySource = new HashMap<>();
+        Map<String, Integer> incomingCountByTarget = new HashMap<>();
+        rawEdges.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> (Map<String, Object>) item)
+            .forEach(edge -> {
+                Object source = edge.get("source");
+                if (source instanceof String sourceId && !sourceId.isBlank()) {
+                    outgoingBySource.computeIfAbsent(sourceId, ignored -> new ArrayList<>()).add(edge);
+                }
+                Object target = edge.get("target");
+                if (target instanceof String targetId && !targetId.isBlank()) {
+                    incomingCountByTarget.merge(targetId, 1, Integer::sum);
+                }
+            });
+
+        incomingCountByTarget.forEach((targetId, incomingCount) -> {
+            if (incomingCount <= 1) {
+                return;
+            }
+            diagnostics.add(new RuleValidationDiagnostic(
+                "node_merge_forbidden_" + targetId,
+                "error",
+                targetId,
+                null,
+                "node_merge_forbidden",
+                "分流后的链路不允许再次合流到同一个节点。"
+            ));
+        });
+
+        nodeTypesById.forEach((nodeId, nodeType) -> {
+            List<Map<String, Object>> outgoing = outgoingBySource.getOrDefault(nodeId, List.of());
+            if (!"branch".equals(nodeType) && outgoing.size() > 1) {
+                diagnostics.add(new RuleValidationDiagnostic(
+                    "node_multi_outgoing_" + nodeId,
+                    "error",
+                    nodeId,
+                    null,
+                    "node_multi_outgoing",
+                    "非分流节点只能有一条直接流转边。"
+                ));
+            }
+            if (!"branch".equals(nodeType)) {
+                outgoing.forEach(edge -> {
+                    String flowType = normalizeFlowType(edge.get("flowType"), edge.get("branch"));
+                    if (!"direct".equals(flowType)) {
+                        diagnostics.add(new RuleValidationDiagnostic(
+                            "node_condition_edge_" + nodeId + "_" + readString(edge, "id", ""),
+                            "error",
+                            nodeId,
+                            readString(edge, "id", ""),
+                            "node_condition_edge",
+                            "只有分流节点后的连线允许配置为条件流转。"
+                        ));
+                    }
+                });
+            }
+            if ("branch".equals(nodeType)) {
+                outgoing.forEach(edge -> {
+                    String flowType = normalizeFlowType(edge.get("flowType"), edge.get("branch"));
+                    if (!"condition".equals(flowType)) {
+                        return;
+                    }
+                    List<Map<String, Object>> conditions = readConditionList(edge.get("conditions"));
+                    if (conditions.isEmpty()) {
+                        diagnostics.add(new RuleValidationDiagnostic(
+                            "edge_conditions_missing_" + readString(edge, "id", ""),
+                            "warning",
+                            nodeId,
+                            readString(edge, "id", ""),
+                            "edge_conditions_missing",
+                            "条件流转边尚未配置命中条件，运行时不会进入该子链。"
+                        ));
+                    }
+                });
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void validateCompiledStructure(
+        Map<String, Object> compiledPayload,
+        List<RuleValidationDiagnostic> diagnostics
+    ) {
+        List<?> rawSteps = readList(compiledPayload, "steps");
+        Map<String, String> stepTypesById = new HashMap<>();
+        rawSteps.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> (Map<String, Object>) item)
+            .forEach(step -> {
+                String stepId = readString(step, "id", "");
+                String stepType = readString(step, "type", "");
+                if (!stepId.isBlank() && !stepType.isBlank()) {
+                    stepTypesById.put(stepId, "condition".equals(stepType) ? "branch" : stepType);
+                }
+            });
+
+        Set<String> targetIds = new HashSet<>();
+        Map<String, Integer> incomingCountByTarget = new HashMap<>();
+        rawSteps.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> (Map<String, Object>) item)
+            .forEach(step -> {
+                String stepId = readString(step, "id", "");
+                String stepType = stepTypesById.getOrDefault(stepId, readString(step, "type", ""));
+                List<Map<String, Object>> nextList = readNextList(step.get("next"));
+
+                nextList.stream()
+                    .map(next -> next.get("target"))
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .filter(target -> !target.isBlank())
+                    .forEach(target -> {
+                        targetIds.add(target);
+                        incomingCountByTarget.merge(target, 1, Integer::sum);
+                    });
+
+                if (!"branch".equals(stepType) && nextList.size() > 1) {
+                    diagnostics.add(new RuleValidationDiagnostic(
+                        "compiled_node_multi_outgoing_" + stepId,
+                        "error",
+                        stepId,
+                        null,
+                        "node_multi_outgoing",
+                        "非分流节点只能有一条直接流转边。"
+                    ));
+                }
+
+                if (!"branch".equals(stepType)) {
+                    nextList.forEach(next -> {
+                        String flowType = normalizeFlowType(next.get("flowType"), next.get("branch"));
+                        if (!"direct".equals(flowType)) {
+                            diagnostics.add(new RuleValidationDiagnostic(
+                                "compiled_node_condition_edge_" + stepId,
+                                "error",
+                                stepId,
+                                null,
+                                "node_condition_edge",
+                                "只有分流节点后的连线允许配置为条件流转。"
+                            ));
+                        }
+                    });
+                } else {
+                    nextList.forEach(next -> {
+                        String flowType = normalizeFlowType(next.get("flowType"), next.get("branch"));
+                        if (!"condition".equals(flowType)) {
+                            return;
+                        }
+                        List<Map<String, Object>> conditions = readConditionList(next.get("conditions"));
+                        if (conditions.isEmpty()) {
+                            diagnostics.add(new RuleValidationDiagnostic(
+                                "compiled_edge_conditions_missing_" + stepId,
+                                "warning",
+                                stepId,
+                                null,
+                                "edge_conditions_missing",
+                                "条件流转边尚未配置命中条件，运行时不会进入该子链。"
+                            ));
+                        }
+                    });
+                }
+            });
+
+        incomingCountByTarget.forEach((targetId, incomingCount) -> {
+            if (incomingCount <= 1) {
+                return;
+            }
+            diagnostics.add(new RuleValidationDiagnostic(
+                "compiled_node_merge_forbidden_" + targetId,
+                "error",
+                targetId,
+                null,
+                "node_merge_forbidden",
+                "分流后的链路不允许再次合流到同一个节点。"
+            ));
+        });
+
+        long entryCount = rawSteps.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> (Map<String, Object>) item)
+            .map(step -> readString(step, "id", ""))
+            .filter(stepId -> !stepId.isBlank())
+            .filter(stepId -> !targetIds.contains(stepId))
+            .count();
+        if (entryCount > 1) {
+            diagnostics.add(RuleValidationDiagnostic.error("compiled_multiple_entry_steps", "执行计划存在多个入口步骤，结构不合法"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> readNextList(Object payload) {
+        if (!(payload instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> (Map<String, Object>) item)
+            .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> readConditionList(Object payload) {
+        if (!(payload instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> (Map<String, Object>) item)
+            .filter(condition -> !readString(condition, "fieldKey", "").isBlank())
+            .toList();
+    }
+
+    private String normalizeFlowType(Object flowType, Object legacyBranch) {
+        if (flowType instanceof String flowText && !flowText.isBlank()) {
+            return switch (flowText.trim()) {
+                case "direct", "condition" -> flowText.trim();
+                default -> "direct";
+            };
+        }
+        if (legacyBranch instanceof String branchText && !branchText.isBlank() && !"success".equals(branchText.trim())) {
+            return "condition";
+        }
+        return "direct";
     }
 
     private String normalizeTriggerScope(String triggerScope) {

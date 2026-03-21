@@ -5,13 +5,12 @@ import type {
 } from "../../../store/slices/interactionRuleDraftSlice";
 import type {
   InteractionRuleGraphState,
+  RuleEdgeConditionItem,
   RuleGraphDiagnostic,
   RuleGraphNode,
   RuleReferenceSummary,
 } from "../../../store/slices/interactionRuleGraphSlice";
-
-const STEP_BRANCHES = new Set(["success", "failure", "true", "false", "empty", "nonEmpty"] as const);
-type CompiledStepBranch = "success" | "failure" | "true" | "false" | "empty" | "nonEmpty";
+import type { RuleFormFieldOption } from "./interactionRuleFormFields";
 
 function resolveTriggerScope(eventType: InteractionEventType): CompiledInteractionRule["triggerScope"] {
   switch (eventType) {
@@ -105,7 +104,9 @@ function buildStepPlan(graphState: InteractionRuleGraphState, triggerId: string)
       data: node.data,
       next: outgoing.map((edge) => ({
         target: edge.target,
-        branch: edge.branch ?? "success",
+        flowType: edge.flowType ?? (node.type === "branch" ? "condition" : "direct"),
+        conditionLogic: edge.conditionLogic ?? "and",
+        conditions: Array.isArray(edge.conditions) ? edge.conditions : [],
       })),
     });
     outgoing.forEach((edge) => {
@@ -118,12 +119,21 @@ function buildStepPlan(graphState: InteractionRuleGraphState, triggerId: string)
   return { reachable, plan };
 }
 
+function collectEdgeFieldReferences(edges: InteractionRuleGraphState["graph"]["edges"]) {
+  return edges.flatMap((edge) =>
+    (Array.isArray(edge.conditions) ? edge.conditions : [])
+      .map((condition) => condition.fieldKey)
+      .filter((fieldKey): fieldKey is string => typeof fieldKey === "string" && fieldKey.trim().length > 0)
+  );
+}
+
 export function precompileInteractionRule(params: {
   ruleId: string;
   eventType: InteractionEventType;
   priority: number;
   graphState: InteractionRuleGraphState;
   availableFieldKeys?: string[];
+  availableFields?: RuleFormFieldOption[];
 }): {
   diagnostics: RuleGraphDiagnostic[];
   references: RuleReferenceSummary;
@@ -132,6 +142,7 @@ export function precompileInteractionRule(params: {
   const triggerNodes = params.graphState.graph.nodes.filter((node) => node.type === "trigger");
   const diagnostics: RuleGraphDiagnostic[] = [];
   const availableFieldKeys = new Set(params.availableFieldKeys ?? []);
+  const availableFieldMap = new Map((params.availableFields ?? []).map((item) => [item.value, item]));
 
   if (triggerNodes.length === 0) {
     diagnostics.push({
@@ -190,6 +201,8 @@ export function precompileInteractionRule(params: {
 
   params.graphState.graph.nodes.forEach((node) => {
     const triggerTarget = readTriggerTarget(node);
+    const outgoing = params.graphState.graph.edges.filter((edge) => edge.source === node.id);
+
     if (node.type === "trigger" && !triggerTarget) {
       diagnostics.push({
         id: `trigger_target_invalid_${node.id}`,
@@ -211,6 +224,26 @@ export function precompileInteractionRule(params: {
         nodeId: node.id,
         code: "trigger_target_unknown",
         message: `触发器节点引用的字段已不存在：${triggerTarget}`,
+      });
+    }
+
+    if (node.type !== "branch" && outgoing.length > 1) {
+      diagnostics.push({
+        id: `node_multi_outgoing_${node.id}`,
+        level: "error",
+        nodeId: node.id,
+        code: "node_multi_outgoing",
+        message: "非分流节点只能有一条直接流转边。",
+      });
+    }
+
+    if (node.type !== "branch" && outgoing.some((edge) => (edge.flowType ?? "direct") !== "direct")) {
+      diagnostics.push({
+        id: `node_condition_edge_${node.id}`,
+        level: "error",
+        nodeId: node.id,
+        code: "node_condition_edge",
+        message: "只有分流节点后的连线允许配置为条件流转。",
       });
     }
 
@@ -249,11 +282,28 @@ export function precompileInteractionRule(params: {
           message: `命令节点引用的字段已不存在：${fieldKey}`,
         });
       }
+      if (command === "setValue" && fieldKey) {
+        const fieldMeta = availableFieldMap.get(fieldKey);
+        const literalValue = node.data.literalValue;
+        if (
+          fieldMeta?.component === "number" &&
+          literalValue != null &&
+          String(literalValue).trim() &&
+          Number.isNaN(Number(String(literalValue).trim()))
+        ) {
+          diagnostics.push({
+            id: `command_number_literal_invalid_${node.id}`,
+            level: "error",
+            nodeId: node.id,
+            code: "command_number_literal_invalid",
+            message: "数字字段的设置值命令必须填写合法数字字面量，或改用值来源变量。",
+          });
+        }
+      }
     }
 
     if (
-      (node.type === "condition" ||
-        node.type === "query" ||
+      (node.type === "query" ||
         node.type === "transform" ||
         node.type === "context") &&
       typeof node.data.fieldKey === "string" &&
@@ -269,17 +319,57 @@ export function precompileInteractionRule(params: {
         message: `节点引用的字段已不存在：${node.data.fieldKey}`,
       });
     }
+
+    if (node.type === "branch") {
+      outgoing.forEach((edge) => {
+        if ((edge.flowType ?? "condition") !== "condition") {
+          return;
+        }
+        const conditions = Array.isArray(edge.conditions) ? edge.conditions : [];
+        if (conditions.length === 0) {
+          diagnostics.push({
+            id: `edge_conditions_missing_${edge.id}`,
+            level: "warning",
+            edgeId: edge.id,
+            code: "edge_conditions_missing",
+            message: "条件流转边尚未配置命中条件，运行时不会进入该子链。",
+          });
+        }
+        conditions.forEach((condition: RuleEdgeConditionItem, index) => {
+          if (!condition.fieldKey) {
+            diagnostics.push({
+              id: `edge_condition_field_missing_${edge.id}_${index}`,
+              level: "warning",
+              edgeId: edge.id,
+              code: "edge_condition_field_missing",
+              message: "条件流转边存在未选择字段的条件项。",
+            });
+            return;
+          }
+          if (availableFieldKeys.size > 0 && !isKnownFieldPath(condition.fieldKey, availableFieldKeys)) {
+            diagnostics.push({
+              id: `edge_condition_field_unknown_${edge.id}_${index}`,
+              level: "error",
+              edgeId: edge.id,
+              code: "edge_condition_field_unknown",
+              message: `条件流转边引用的字段已不存在：${condition.fieldKey}`,
+            });
+          }
+        });
+      });
+    }
   });
 
   const references: RuleReferenceSummary = {
     fields: Array.from(
-      new Set(
-        params.graphState.graph.nodes.flatMap((node) =>
+      new Set([
+        ...params.graphState.graph.nodes.flatMap((node) =>
           [collectNodeFieldReference(node, "fieldKey"), collectNodeFieldReference(node, "triggerTarget"), collectNodeFieldReference(node, "targetField")].filter(
             (value): value is string => Boolean(value)
           )
-        )
-      )
+        ),
+        ...collectEdgeFieldReferences(params.graphState.graph.edges),
+      ])
     ),
     detailTables: collectReferenceValues(params.graphState.graph.nodes, "detailTableKey"),
     forms: collectReferenceValues(params.graphState.graph.nodes, "formCode"),
@@ -313,9 +403,13 @@ export function precompileInteractionRule(params: {
               next: Array.isArray(step.next)
                 ? step.next.map((item) => ({
                     target: String((item as { target?: unknown }).target ?? ""),
-                    branch: STEP_BRANCHES.has((item as { branch?: unknown }).branch as never)
-                      ? ((item as { branch?: CompiledStepBranch }).branch ?? "success")
-                      : "success",
+                    flowType:
+                      (item as { flowType?: unknown }).flowType === "condition" ? "condition" : "direct",
+                    conditionLogic:
+                      (item as { conditionLogic?: unknown }).conditionLogic === "or" ? "or" : "and",
+                    conditions: Array.isArray((item as { conditions?: unknown[] }).conditions)
+                      ? ((item as { conditions?: unknown[] }).conditions as RuleEdgeConditionItem[])
+                      : [],
                   }))
                 : [],
               order: index,

@@ -19,6 +19,8 @@ export async function layoutInteractionRuleGraph(params: {
       "elk.spacing.nodeNode": "48",
       "elk.layered.spacing.nodeNodeBetweenLayers": "96",
       "elk.edgeRouting": "ORTHOGONAL",
+      "elk.layered.considerModelOrder": "NODES_AND_EDGES",
+      "elk.layered.crossingMinimization.forceNodeModelOrder": "true",
     },
     children: params.nodes.map((node) => ({
       id: node.id,

@@ -9,7 +9,7 @@ export type RuleNodeCatalogItem = {
 
 export const RULE_NODE_TYPE_META: Record<RuleNodeType, Omit<RuleNodeCatalogItem, "type">> = {
   trigger: { label: "触发器", description: "规则起点，描述事件来源和触发目标。", accent: "#1677ff" },
-  condition: { label: "条件", description: "根据表达式决定 true / false 分支。", accent: "#faad14" },
+  branch: { label: "分流", description: "将执行流分发到多条直接流转或条件流转线路。", accent: "#faad14" },
   query: { label: "查询", description: "读取当前表单、上下文或外部数据。", accent: "#13c2c2" },
   transform: { label: "转换", description: "做字段映射、过滤、聚合、计算。", accent: "#52c41a" },
   command: { label: "命令", description: "向运行时发出 setValue / setReadonly 等命令。", accent: "#722ed1" },
@@ -29,18 +29,29 @@ function createNodeId() {
 }
 
 export function createDefaultRuleNode(type: RuleNodeType, position: { x: number; y: number }): RuleGraphNode {
+  const baseData: Record<string, unknown> = {
+    label: RULE_NODE_TYPE_META[type].label,
+    description: "",
+  };
+
+  if (type === "trigger") {
+    baseData.triggerTarget = "";
+  }
+  if (type === "query" || type === "transform" || type === "context") {
+    baseData.fieldKey = "";
+  }
+  if (type === "command") {
+    baseData.fieldKey = "";
+    baseData.commandType = "setValue";
+  }
+  if (type === "context") {
+    baseData.saveAs = "tempValue";
+  }
+
   return {
     id: createNodeId(),
     type,
     position,
-    data: {
-      label: RULE_NODE_TYPE_META[type].label,
-      description: "",
-      triggerTarget: "",
-      fieldKey: "",
-      commandType: type === "command" ? "setValue" : "",
-      branch: "success",
-      saveAs: type === "context" ? "tempValue" : "",
-    },
+    data: baseData,
   };
 }
